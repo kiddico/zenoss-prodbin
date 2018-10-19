@@ -90,7 +90,9 @@ from Products.ZenHub.interfaces import (
     FILTER_EXCLUDE
 )
 
-from Products.ZenHub.metricmanager import MetricManager
+from Products.ZenHub.metricmanager import (
+    MetricManager, buildMetricWriter, buildMetricReporter, buildStatsReporter
+)
 
 # Due to the manipulation of sys.path during the loading of plugins,
 # we can get ObjectMap imported both as DataMaps.ObjectMap and the
@@ -141,9 +143,9 @@ class ZenHub(ZCmdBase):
     TODO: document invalidation workers
     """
 
-    totalTime = 0.
-    totalEvents = 0
-    totalCallTime = 0.
+    # totalTime = 0.
+    # totalEvents = 0
+    # totalCallTime = 0.
     name = 'zenhub'
 
     def __init__(self):
@@ -159,7 +161,6 @@ class ZenHub(ZCmdBase):
         self.executionTimer = collections.defaultdict(lambda: [0, 0.0, 0.0, 0])
 
         self.shutdown = False
-        self.counters = collections.Counter()
         self._invalidations_paused = False
 
         ZCmdBase.__init__(self)
@@ -219,16 +220,20 @@ class ZenHub(ZCmdBase):
         )
 
         # Setup Metric Reporting
-        self._metric_manager = MetricManager(
-            daemon_tags={
+        writer = buildMetricWriter()
+        reporter = buildMetricReporter(
+            writer,
+            {
                 'zenoss_daemon': 'zenhub',
                 'zenoss_monitor': self.options.monitor,
                 'internal': True
-            })
-        self._metric_writer = self._metric_manager.metric_writer
-        self.rrdStats = self._metric_manager.get_rrd_stats(
-            self._getConf(), self.zem.sendEvent
+            }
         )
+        stats = buildStatsReporter(
+            writer, self._getConf(), self.zem.sendEvent
+        )
+        self._metric_manager = MetricManager(reporter, stats)
+        self.counters = self._metric_manager.counters
 
         # set up SIGUSR2 handling
         try:
@@ -309,24 +314,29 @@ class ZenHub(ZCmdBase):
 
         @return: None
         """
-        now = time.time()
-        try:
-            self.log.debug("[processQueue] syncing....")
-            yield self.async_syncdb()  # reads the object invalidations
-            self.log.debug("[processQueue] synced")
-        except Exception:
-            self.log.warn("Unable to poll invalidations, will try again.")
-        else:
-            try:
-                self.doProcessQueue()
-            except Exception:
-                self.log.exception("Unable to poll invalidations.")
-        reactor.callLater(
-            self.options.invalidation_poll_interval,
-            self.processQueue
+        timer = self._metric_manager.timer(
+            "zenhub.invalidations.processing.time"
         )
-        self.totalEvents += 1
-        self.totalTime += time.time() - now
+        counter = self._metric_manager.counter(
+            "zenhub.invalidations.processing.events"
+        )
+        with timer:
+            try:
+                self.log.debug("[processQueue] syncing....")
+                yield self.async_syncdb()  # reads the object invalidations
+                self.log.debug("[processQueue] synced")
+            except Exception:
+                self.log.warn("Unable to poll invalidations, will try again.")
+            else:
+                try:
+                    self.doProcessQueue()
+                except Exception:
+                    self.log.exception("Unable to poll invalidations.")
+            reactor.callLater(
+                self.options.invalidation_poll_interval,
+                self.processQueue
+            )
+            counter.increment()
 
     def _initialize_invalidation_filters(self):
         filters = (f for n, f in getUtilitiesFor(IInvalidationFilter))
@@ -722,16 +732,31 @@ class ZenHub(ZCmdBase):
         self.zem.sendEvent(evt)
         self.niceDoggie(seconds)
         reactor.callLater(seconds, self.heartbeat)
-        r = self.rrdStats
-        totalTime = sum(s.callTime for s in self.services.values())
-        r.counter('totalTime', int(self.totalTime * 1000))
-        r.counter('totalEvents', self.totalEvents)
-        r.gauge('services', len(self.services))
-        r.counter('totalCallTime', totalTime)
-        r.gauge('workListLength', len(self._worklist))
 
-        for name, value in self.counters.items():
-            r.counter(name, value)
+        procTimer = self._metric_manager.timer(
+            "zenhub.invalidations.processing.time"
+        )
+        procCounter = self._metric_manager.counter(
+            "zenhub.invalidations.processing.events"
+        )
+
+        # collect and report statistics
+        stats = [
+            ("totalTime", "counter", int(procTimer.total_time * 1000)),
+            ("totalEvents", "counter", procCounter.count),
+            ("services", "gauge", len(self.services)),
+            (
+                "totalCallTime",
+                "counter",
+                sum(s.callTime for s in self.services.values())
+            ),
+            ("workListLength", "gauge", len(self.workList)),
+        ]
+        stats.extend(
+            (name, "counter", value)
+            for name, value in self.counters.items()
+        )
+        self._metric_manager.reportStats(stats)
 
         try:
             hbcheck = IHubHeartBeatCheck(self)
