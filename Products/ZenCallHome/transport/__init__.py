@@ -7,7 +7,6 @@
 #
 ##############################################################################
 
-
 import base64
 import json
 import logging
@@ -125,7 +124,7 @@ class CallHome(object):
             returnPayload = zlib.decompress(base64.urlsafe_b64decode(
                                                 returnPayload))
             returnPayload = json.loads(returnPayload)
-        except:
+        except Exception:
             logger.debug('Error decoding return payload from server')
             return
 

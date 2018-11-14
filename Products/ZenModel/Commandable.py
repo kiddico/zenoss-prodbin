@@ -1,54 +1,64 @@
 ##############################################################################
-# 
+#
 # Copyright (C) Zenoss, Inc. 2007, all rights reserved.
-# 
+#
 # This content is made available according to terms specified in
 # License.zenoss under the directory where your Zenoss product is installed.
-# 
+#
 ##############################################################################
 
-
-from Products.ZenMessaging.audit import audit
-from Products.ZenUtils.deprecated import deprecated
-
-__doc__="""Commandable
+"""Commandable
 
 Mixin class for classes that need a relationship back from UserCommand.
 
 """
 
-from Globals import InitializeClass
-from AccessControl import ClassSecurityInfo
-from ZenossSecurity import *
-from UserCommand import UserCommand
-from Acquisition import aq_base, aq_chain
-from Products.PageTemplates.Expressions import getEngine
-from Products.ZenUtils.csrf import validate_csrf_token
-from Products.ZenUtils.ZenTales import talesCompile
-from Products.ZenUtils.Utils import unused
-from Products.ZenWidgets import messaging
-from DateTime import DateTime
+import cgi
+import fcntl
+import logging
 import os
 import popen2
-import fcntl
 import select
 import signal
-import time
-import cgi
 import sys
+import time
 
-import logging
+from DateTime import DateTime
+
+from AccessControl import ClassSecurityInfo
+from Acquisition import aq_base, aq_chain
+from Globals import InitializeClass
+from Products.PageTemplates.Expressions import getEngine
+from UserCommand import UserCommand
+
+from Products.ZenMessaging.audit import audit
+from Products.ZenUtils.csrf import validate_csrf_token
+from Products.ZenUtils.deprecated import deprecated
+from Products.ZenUtils.Utils import unused
+from Products.ZenUtils.ZenTales import talesCompile
+from Products.ZenWidgets import messaging
+
+from ZenossSecurity import (
+    ZEN_DEFINE_COMMANDS_EDIT, ZEN_RUN_COMMANDS, ZEN_VIEW,
+    ZEN_DEFINE_COMMANDS_VIEW
+)
+
 log = logging.getLogger("zen.Device")
+
 
 class Commandable:
 
-    defaultTimeout = 60 # seconds
+    defaultTimeout = 60  # seconds
 
     security = ClassSecurityInfo()
 
-    security.declareProtected(ZEN_DEFINE_COMMANDS_EDIT, 'manage_addUserCommand')
+    security.declareProtected(
+        ZEN_DEFINE_COMMANDS_EDIT, 'manage_addUserCommand'
+    )
+
     @validate_csrf_token
-    def manage_addUserCommand(self, newId=None, desc='', cmd='', REQUEST=None):
+    def manage_addUserCommand(
+            self, newId=None, desc='', cmd='', REQUEST=None):
         "Add a UserCommand to this device"
         unused(desc, cmd)
         uc = None
@@ -62,20 +72,26 @@ class Commandable:
             uc.command = cmd
         if REQUEST:
             if uc:
-                audit('UI.Command.Add', newId, action=uc.command, description=uc.description)
+                audit(
+                    'UI.Command.Add', newId,
+                    action=uc.command, description=uc.description
+                )
                 messaging.IMessageSender(self).sendToBrowser(
                     'Command Added',
                     'User command %s has been created.' % newId
                 )
                 screenName = REQUEST.get("editScreenName", "")
-                return REQUEST.RESPONSE.redirect(uc.getPrimaryUrlPath() +
-                        '/%s' % screenName if screenName else '')
+                return REQUEST.RESPONSE.redirect(
+                    uc.getPrimaryUrlPath() +
+                    '/%s' % screenName if screenName else ''
+                )
             return self.callZenScreen(REQUEST, True)
         return uc
 
+    security.declareProtected(
+        ZEN_DEFINE_COMMANDS_EDIT, 'manage_deleteUserCommand'
+    )
 
-    security.declareProtected(ZEN_DEFINE_COMMANDS_EDIT,
-        'manage_deleteUserCommand')
     def manage_deleteUserCommand(self, ids=(), REQUEST=None):
         "Delete User Command(s) to this device"
         if isinstance(ids, basestring):
@@ -93,8 +109,10 @@ class Commandable:
             )
             return self.redirectToUserCommands(REQUEST)
 
-    security.declareProtected(ZEN_DEFINE_COMMANDS_EDIT,
-        'manage_editUserCommand')
+    security.declareProtected(
+        ZEN_DEFINE_COMMANDS_EDIT, 'manage_editUserCommand'
+    )
+
     def manage_editUserCommand(self, commandId, REQUEST):
         ''' Want to redirect back to management tab after a save
         '''
@@ -102,7 +120,7 @@ class Commandable:
         if command:
             password = REQUEST.form.get('password', '')
             if not self.dmd.ZenUsers.authenticateCredentials(
-                self.dmd.ZenUsers.getUser().getId(), password):
+                    self.dmd.ZenUsers.getUser().getId(), password):
                 messaging.IMessageSender(self).sendToBrowser(
                     'Password Error',
                     'Invalid or empty password.',
@@ -111,11 +129,14 @@ class Commandable:
                 return REQUEST.RESPONSE.redirect(command.absolute_url_path())
             del REQUEST.form['password']
             command.manage_changeProperties(**REQUEST.form)
-            audit('UI.Command.Edit', commandId, action=REQUEST.form.get('command',''))
+            audit(
+                'UI.Command.Edit', commandId,
+                action=REQUEST.form.get('command', '')
+            )
         return self.redirectToUserCommands(REQUEST)
 
-
     security.declareProtected(ZEN_RUN_COMMANDS, 'manage_doUserCommand')
+
     @deprecated
     def manage_doUserCommand(self, commandId=None, REQUEST=None):
         ''' Execute a UserCommand. If REQUEST then
@@ -125,7 +146,7 @@ class Commandable:
         # logger so that non web-based code can produce output.
         # Not necessary for now.
 
-        command = self.getUserCommands(asDict=True).get(commandId,None)
+        command = self.getUserCommands(asDict=True).get(commandId, None)
         if not command:
             if REQUEST:
                 return self.redirectToUserCommands(REQUEST)
@@ -145,19 +166,25 @@ class Commandable:
                 self.write(out, '')
                 self.write(out, '==== %s ====' % target.id)
                 self.doCommandForTarget(command, target, out)
-                #untested, method call cannot be found
+                # untested, method call cannot be found
                 audit('UI.Command.Invoke', commandId, target=target)
-            except:
-                self.write(out,
-                    'exception while performing command for %s' % target.id)
+            except Exception:
                 self.write(
-                    out, 'type: %s  value: %s' % tuple(sys.exc_info()[:2]))
+                    out,
+                    'exception while performing command for %s' % target.id
+                )
+                self.write(
+                    out, 'type: %s  value: %s' % tuple(sys.exc_info()[:2])
+                )
             self.write(out, '')
         self.write(out, '')
-        self.write(out, 'DONE in %s seconds on %s targets' %
-                    (long(time.time() - startTime), numTargets))
+        self.write(
+            out,
+            'DONE in %s seconds on %s targets' % (
+                long(time.time() - startTime), numTargets
+            )
+        )
         REQUEST.RESPONSE.write(str(footer))
-
 
     def doCommandForTarget(self, cmd, target, out):
         ''' Execute the given UserCommand on the given target
@@ -166,7 +193,9 @@ class Commandable:
         child = popen2.Popen4(compiled)
         flags = fcntl.fcntl(child.fromchild, fcntl.F_GETFL)
         fcntl.fcntl(child.fromchild, fcntl.F_SETFL, flags | os.O_NDELAY)
-        timeout = getattr(target, 'zCommandCommandTimeout', self.defaultTimeout)
+        timeout = getattr(
+            target, 'zCommandCommandTimeout', self.defaultTimeout
+        )
         timeout = max(timeout, 1)
         endtime = time.time() + timeout
         self.write(out, '%s' % compiled)
@@ -189,17 +218,20 @@ class Commandable:
                             ' (timeout is %s seconds)' % timeout)
             os.kill(child.pid, signal.SIGKILL)
 
-
     def compile(self, cmd, target):
         ''' Evaluate command as a tales expression
         '''
         command = cmd.command
         # make sure we are targeting the right collector
-        if not command.startswith("dcsh") and hasattr(target, "getPerformanceServerName"):
+        if not command.startswith("dcsh") and \
+                hasattr(target, "getPerformanceServerName"):
             collector = target.getPerformanceServer()
             if collector:
-                command = 'zminion --minion-name zminion_%s run -- "%s"' % (target.getPerformanceServerName(), command.replace('\n', ' '))
-        exp = "string:"+ command
+                command = 'zminion --minion-name zminion_%s run -- "%s"' % (
+                    target.getPerformanceServerName(),
+                    command.replace('\n', ' ')
+                )
+        exp = "string:" + command
         compiled = talesCompile(exp)
         environ = target.getUserCommandEnvironment()
         res = compiled(getEngine().getContext(environ))
@@ -207,8 +239,8 @@ class Commandable:
             raise res
         return res
 
-
     security.declareProtected(ZEN_VIEW, 'getUserCommandIds')
+
     def getUserCommandIds(self):
         ''' Get the user command ids available in this context
         '''
@@ -222,6 +254,7 @@ class Commandable:
         return commandIds
 
     security.declareProtected(ZEN_DEFINE_COMMANDS_VIEW, 'getUserCommands')
+
     def getUserCommands(self, asDict=False):
         ''' Get the user commands available in this context
         '''
@@ -233,13 +266,13 @@ class Commandable:
                 for c in obj.userCommands():
                     commands[c.id] = c
         if not asDict:
-            commands = sorted(commands.itervalues(), key=lambda cmd: cmd.getId())
+            commands = sorted(
+                commands.itervalues(), key=lambda cmd: cmd.getId()
+            )
         return commands
-
 
     def getAqChainForUserCommands(self):
         return aq_chain(self.primaryAq())
-
 
     def redirectToUserCommands(self, REQUEST, commandId=None):
         ''' Redirect to the page which lists UserCommands
@@ -251,7 +284,6 @@ class Commandable:
             return REQUEST.RESPONSE.redirect(url)
         return self.callZenScreen(REQUEST)
 
-
     def getUrlForUserCommands(self):
         ''' Return url for page which manages user commands
         '''
@@ -259,11 +291,11 @@ class Commandable:
         return self.getPrimaryUrlPath()
 
     security.declareProtected(ZEN_DEFINE_COMMANDS_VIEW, 'getUserCommand')
+
     def getUserCommand(self, commandId):
         ''' Returns the command from the current context if it exists
         '''
         return self.getUserCommands(asDict=True).get(commandId, None)
-
 
     def getUserCommandEnvironment(self):
         ''' Get the environment that provides context for the tales
@@ -271,19 +303,17 @@ class Commandable:
         '''
         # Overridden by Service and Device
         return {
-                'target': self,
-                'here': self,
-                'nothing': None,
-                'now': DateTime()
-                }
-
+            'target': self,
+            'here': self,
+            'nothing': None,
+            'now': DateTime()
+        }
 
     def getUserCommandTargets(self):
         ''' Called by Commandable.doCommand() to ascertain objects on which
         a UserCommand should be executed.
         '''
         raise NotImplemented
-
 
     def write(self, out, lines):
         ''' Output (maybe partial) result text from a UserCommand.
@@ -301,14 +331,13 @@ class Commandable:
         if out:
             if not isinstance(lines, list):
                 lines = [lines]
-            for l in lines:
-                if not isinstance(l, str):
-                    l = str(l)
-                l = l.strip()
-                l = cgi.escape(l)
-                l = l.replace('\n', endLine + startLine)
-                out.write(startLine + l + endLine)
-
+            for line in lines:
+                if not isinstance(line, str):
+                    line = str(line)
+                line = line.strip()
+                line = cgi.escape(line)
+                line = line.replace('\n', endLine + startLine)
+                out.write(startLine + line + endLine)
 
 
 InitializeClass(Commandable)

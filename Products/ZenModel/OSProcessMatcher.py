@@ -1,26 +1,24 @@
 ##############################################################################
-# 
+#
 # Copyright (C) Zenoss, Inc. 2013, all rights reserved.
-# 
+#
 # This content is made available according to terms specified in
 # License.zenoss under the directory where your Zenoss product is installed.
-# 
+#
 ##############################################################################
 
 import logging
 import re
-import os
-import time
-import signal
-from contextlib import contextmanager
-from sre_parse import parse_template
+
 from md5 import md5
+from sre_parse import parse_template
 
 from Products.ZenUtils.Utils import prepId
 
 log = logging.getLogger("zen.osprocessmatcher")
 
-BLANK_PARSE_TEMPLATE = ([],[])
+BLANK_PARSE_TEMPLATE = ([], [])
+
 
 class OSProcessClassMatcher(object):
     """
@@ -42,7 +40,8 @@ class OSProcessClassMatcher(object):
         @return: Does the process's command line match this process matcher?
         @rtype: Boolean
         """
-        if not processText: return False
+        if not processText:
+            return False
         processText = processText.strip()
         if self._searchIncludeRegex(processText):
             return not self._searchExcludeRegex(processText)
@@ -57,8 +56,9 @@ class OSProcessClassMatcher(object):
         The ID is based on a digest of the result of generateName, scoped below
         the OSProcessClass's primaryUrlPath.
 
-        (In order to get an "other" bucket, the replaceRegex should be written
-        to match the entire string, and every capture group should be optional.)
+        Note: in order to get an "other" bucket, the replaceRegex should be
+        written to match the entire string, and every capture group should
+        be optional.
 
         @return: The unique ID of the corresponding OSProcess
         @rtype: string
@@ -78,11 +78,13 @@ class OSProcessClassMatcher(object):
         @return: The unique ID of the corresponding OSProcess
         @rtype: string
         """
-        generatedId = prepId(self.processClassPrimaryUrlPath()) + "_" + \
-                      md5(name).hexdigest().strip()
+        generatedId = prepId(''.join((
+            self.processClassPrimaryUrlPath(),
+            "_",
+            md5(name).hexdigest().strip()
+        )))
         log.debug("Generated unique ID: %s", generatedId)
         return generatedId
-
 
     def generateName(self, processText):
         """
@@ -103,9 +105,10 @@ class OSProcessClassMatcher(object):
             # back-references an optional capture group that captured None.
             # In that case, we want it to replace the back-reference with ''.
             try:
-                groups, literals = self._compiledReplacement('replaceRegex',
-                                                             'replacement')
-            except:
+                groups, literals = self._compiledReplacement(
+                    'replaceRegex', 'replacement'
+                )
+            except Exception:
                 log.warn("Invalid replacement rule on %s", self)
                 return processText
             parts = []
@@ -117,7 +120,7 @@ class OSProcessClassMatcher(object):
                 for index, group in groups:
                     try:
                         literal = match.group(group) or ''
-                    except IndexError as e:
+                    except IndexError:
                         log.warn("Invalid replacement rule on %s", self)
                         return processText
                     literals[index] = literal
@@ -137,35 +140,39 @@ class OSProcessClassMatcher(object):
 
     def _compiledRegex(self, field):
         regex = getattr(self, field, None)
-        if not regex: return None
+        if not regex:
+            return None
         cache = self._compiledCache()
         if field in cache and regex in cache[field]:
             return cache[field][regex]
         else:
             try:
                 compiled = re.compile(regex)
-                cache[field] = {regex : compiled}
+                cache[field] = {regex: compiled}
                 return compiled
-            except re.error as e:
+            except re.error:
                 log.warn("Invalid %s on %s", field, self)
-                cache[field] = {regex : None}
+                cache[field] = {regex: None}
                 return None
 
     def _compiledReplacement(self, regexField, replField):
         repl = getattr(self, replField, None)
-        if not repl: return BLANK_PARSE_TEMPLATE
+        if not repl:
+            return BLANK_PARSE_TEMPLATE
         cache = self._compiledCache()
         regex = getattr(self, regexField, None)
-        if replField in cache and (regex,repl) in cache[replField]:
-            return cache[replField][(regex,repl)]
+        if replField in cache and (regex, repl) in cache[replField]:
+            return cache[replField][(regex, repl)]
         else:
             try:
-                compiled = parse_template(repl, self._compiledRegex(regexField))
-                cache[replField] = {(regex,repl) : compiled}
+                compiled = parse_template(
+                    repl, self._compiledRegex(regexField)
+                )
+                cache[replField] = {(regex, repl): compiled}
                 return compiled
-            except:
+            except Exception:
                 log.warn("Invalid %s on %s", replField, self)
-                cache[replField] = {(regex,repl) : None}
+                cache[replField] = {(regex, repl): None}
                 return None
 
     def _compiledCache(self):
@@ -173,6 +180,7 @@ class OSProcessClassMatcher(object):
         if not cache:
             cache = self._compiled_cache = {}
         return cache
+
 
 class OSProcessMatcher(OSProcessClassMatcher):
     """
@@ -188,14 +196,16 @@ class OSProcessMatcher(OSProcessClassMatcher):
     """
     def matches(self, processText):
         if super(OSProcessMatcher, self).matches(processText):
-            generatedId = getattr(self,'generatedId',False)
+            generatedId = getattr(self, 'generatedId', False)
             return self.generateId(processText) == generatedId
         return False
 
+
 class DataHolder(object):
+
     def __init__(self, **attribs):
-        for k,v in attribs.items():
-            setattr(self,k,v)
+        for k, v in attribs.items():
+            setattr(self, k, v)
 
     def __repr__(self):
         return "<" + self.__class__.__name__ + ": " + str(self.__dict__) + ">"
@@ -207,8 +217,10 @@ class DataHolder(object):
 class OSProcessClassDataMatcher(DataHolder, OSProcessClassMatcher):
     pass
 
+
 class OSProcessDataMatcher(DataHolder, OSProcessMatcher):
     pass
+
 
 def applyOSProcessClassMatchers(matchers, lines):
     """
@@ -235,6 +247,7 @@ def applyOSProcessClassMatchers(matchers, lines):
             unmatched.append(line)
     return (matched, unmatched)
 
+
 def applyOSProcessMatchers(matchers, lines):
     """
     @return (matched, unmatched), where...
@@ -257,8 +270,12 @@ def applyOSProcessMatchers(matchers, lines):
             unmatched.append(line)
     return (matched, unmatched)
 
+
 def buildObjectMapData(processClassMatchData, lines):
-    matchers = map(lambda(d):OSProcessClassDataMatcher(**d), processClassMatchData)
+    matchers = map(
+        lambda(d): OSProcessClassDataMatcher(**d),
+        processClassMatchData
+    )
     matched, unmatched = applyOSProcessClassMatchers(matchers, lines)
     result = []
     for matcher, matchSet in matched.items():
@@ -267,5 +284,6 @@ def buildObjectMapData(processClassMatchData, lines):
                 'id': matcher.generateIdFromName(name),
                 'displayName': name,
                 'setOSProcessClass': matcher.primaryDmdId,
-                'monitoredProcesses': matches})
+                'monitoredProcesses': matches
+            })
     return result

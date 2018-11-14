@@ -7,26 +7,31 @@
 #
 ##############################################################################
 
-
-import os
-import Globals
-import zope.interface
 import md5
+import os
+
 from urlparse import urljoin
-from interfaces import IMainSnippetManager
-from Products.ZenUI3.utils.javascript import JavaScriptSnippetManager,\
-    JavaScriptSnippet, SCRIPT_TAG_TEMPLATE
-from Products.ZenUI3.browser.interfaces import IJavaScriptSrcViewlet,\
-    IJavaScriptBundleViewlet, IJavaScriptSrcManager, IXTraceSrcManager, ICSSBundleViewlet, ICSSSrcManager
+
 from Products.Five.viewlet.viewlet import ViewletBase
-from Products.ZenUI3.navigation.manager import WeightOrderedViewletManager
-from Products.ZenUtils.extdirect.zope.metaconfigure import allDirectRouters
 from zope.publisher.browser import TestRequest
 from zope.component import getAdapter
+from zope.interface import implementer
+
+import Globals
+
+from Products.ZenUI3.utils.javascript import (
+    JavaScriptSnippetManager, JavaScriptSnippet, SCRIPT_TAG_TEMPLATE
+)
+from Products.ZenUI3.browser.interfaces import (
+    IJavaScriptSrcViewlet, IJavaScriptBundleViewlet, IJavaScriptSrcManager,
+    IXTraceSrcManager, ICSSBundleViewlet, ICSSSrcManager
+)
+from Products.ZenUI3.navigation.manager import WeightOrderedViewletManager
+from Products.ZenUtils.extdirect.zope.metaconfigure import allDirectRouters
 from Products.ZenUtils.Utils import monkeypatch
-from Products.ZenModel.ZVersion import VERSION
 from Products.Zuul.decorators import memoize
 
+from .interfaces import IMainSnippetManager
 from .resources import COMPILED_JS_EXISTS
 
 
@@ -53,50 +58,66 @@ def resourceDirectory(*args, **kwargs):
 
 def getAllZenPackResources():
     # make a copy so the original isn't mutated
-    return [x for x in _registered_resources if "zenpack" in x['directory'].lower()]
+    return [
+        x
+        for x in _registered_resources
+        if "zenpack" in x['directory'].lower()
+    ]
+
 
 @memoize
 def getPathModifiedTime(path):
     """
-    This method takes a js request path such as /++resources++zenui/zenoss/file.js and
+    This method takes a js request path such as
+    /++resources++zenui/zenoss/file.js and
     returns the last time the file was modified.
     """
     if "++resource++" in path:
         identifier = path.split('/')[1].replace("++resource++", "")
-        filePath = path.replace("/++resource++" + identifier , "")
+        filePath = path.replace("/++resource++" + identifier, "")
         resource = getAdapter(dummyRequest, name=identifier)
         fullPath = resource.context.path + filePath
         if os.path.exists(fullPath):
             return os.path.getmtime(fullPath)
 
+
 SCRIPT_TAG_SRC_TEMPLATE = '<script type="text/javascript" src="%s"></script>\n'
-LINK_TAG_SRC_TEMPLATE = '<link rel="stylesheet" type="text/css" href="%s"></link>\n'
+LINK_TAG_SRC_TEMPLATE = \
+    '<link rel="stylesheet" type="text/css" href="%s"></link>\n'
 
 
 def absolutifyPath(path):
     return urljoin('/zport/dmd', path)
+
+
 getVersionedPath = absolutifyPath
 
 
+@implementer(IMainSnippetManager)
 class MainSnippetManager(JavaScriptSnippetManager):
     """
     A viewlet manager to handle Ext.Direct API definitions.
     """
-    zope.interface.implements(IMainSnippetManager)
 
+
+@implementer(ICSSSrcManager)
 class CSSSrcManager(WeightOrderedViewletManager):
-    zope.interface.implements(ICSSSrcManager)
+    pass
 
+
+@implementer(IJavaScriptSrcManager)
 class JavaScriptSrcManager(WeightOrderedViewletManager):
-    zope.interface.implements(IJavaScriptSrcManager)
+    pass
 
+
+@implementer(IXTraceSrcManager)
 class XTraceSrcManager(WeightOrderedViewletManager):
-    zope.interface.implements(IXTraceSrcManager)
+    pass
 
 
+@implementer(ICSSBundleViewlet)
 class CSSSrcBundleViewlet(ViewletBase):
-    zope.interface.implements(ICSSBundleViewlet)
-    #space delimited string of src paths
+    # space delimited string of src paths
     paths = ''
 
     def render(self):
@@ -110,8 +131,8 @@ class CSSSrcBundleViewlet(ViewletBase):
         return js
 
 
+@implementer(IJavaScriptSrcViewlet)
 class JavaScriptSrcViewlet(ViewletBase):
-    zope.interface.implements(IJavaScriptSrcViewlet)
     path = None
 
     def render(self):
@@ -120,9 +141,9 @@ class JavaScriptSrcViewlet(ViewletBase):
         return SCRIPT_TAG_SRC_TEMPLATE % absolutifyPath(self.path)
 
 
+@implementer(IJavaScriptBundleViewlet)
 class JavaScriptSrcBundleViewlet(ViewletBase):
-    zope.interface.implements(IJavaScriptBundleViewlet)
-    #space delimited string of src paths
+    # space delimited string of src paths
     paths = ''
 
     def render(self):
@@ -135,6 +156,7 @@ class JavaScriptSrcBundleViewlet(ViewletBase):
             js = "".join(vals)
         return js
 
+
 class ExtDirectViewlet(JavaScriptSrcViewlet):
     """
     A specialized renderer for ExtDirect. We can not cache-bust this
@@ -146,20 +168,20 @@ class ExtDirectViewlet(JavaScriptSrcViewlet):
         if self.directHash is None:
             # append the extdirect request with a hash or all routers
             # so that it is updated when a new zenpack is installed
-            routernames = sorted([r['name'] for r in allDirectRouters.values()])
+            routernames = sorted(r['name'] for r in allDirectRouters.values())
             self.directHash = md5.new(" ".join(routernames)).hexdigest()
-        path = self.path  + "?v=" + self.directHash
+        path = self.path + "?v=" + self.directHash
         return SCRIPT_TAG_SRC_TEMPLATE % path
 
 
+@implementer(IJavaScriptSrcViewlet)
 class ZenossAllJs(JavaScriptSrcViewlet):
     """
-    When Zope is in debug mode, we want to use the development JavaScript source
-    files, so we don't have to make changes to a single huge file. If Zope is in
-    production mode and the compressed file is not available, we will use the
-    source files instead of just giving up.
+    When Zope is in debug mode, we want to use the development JavaScript
+    source files, so we don't have to make changes to a single huge file.
+    If Zope is in production mode and the compressed file is not available,
+    we will use the source files instead of just giving up.
     """
-    zope.interface.implements(IJavaScriptSrcViewlet)
 
     def update(self):
         if Globals.DevelopmentMode or not COMPILED_JS_EXISTS:
@@ -170,8 +192,8 @@ class ZenossAllJs(JavaScriptSrcViewlet):
             self.path = "/++resource++zenui/js/deploy/zenoss-compiled.js"
 
 
+@implementer(IJavaScriptSrcViewlet)
 class ExtAllJs(JavaScriptSrcViewlet):
-    zope.interface.implements(IJavaScriptSrcViewlet)
     path = None
 
     def update(self):
@@ -196,8 +218,7 @@ class FireFoxExtCompat(JavaScriptSnippet):
             }
         })();
         """
-        return  SCRIPT_TAG_TEMPLATE % js
-
+        return SCRIPT_TAG_TEMPLATE % js
 
 
 class VisualizationInit(JavaScriptSnippet):
@@ -205,13 +226,16 @@ class VisualizationInit(JavaScriptSnippet):
     Performs necessary initialization for the visualization library
     """
     def snippet(self):
-        js = """
-            if (window.zenoss !== undefined) {
-                zenoss.visualization.url = window.location.protocol + "//" + window.location.host;
-                zenoss.visualization.debug = false;
-            }
-        """
-        return  SCRIPT_TAG_TEMPLATE % js
+        js = '\n'.join([
+            "if (window.zenoss !== undefined) {",
+            (
+                "    zenoss.visualization.url = ",
+                "window.location.protocol + \"//\" + window.location.host;",
+            ),
+            "    zenoss.visualization.debug = false;",
+            "}",
+        ])
+        return SCRIPT_TAG_TEMPLATE % js
 
 
 class ZenossSettings(JavaScriptSnippet):
@@ -225,6 +249,7 @@ class ZenossSettings(JavaScriptSnippet):
             js.append("Zenoss.settings.%s = %s;" % (name, str(value).lower()))
         return "\n".join(js)
 
+
 class ZenossData(JavaScriptSnippet):
     """
     This preloads some data for the UI so that every page doesn't have to send
@@ -232,17 +257,22 @@ class ZenossData(JavaScriptSnippet):
     """
     def snippet(self):
         # collectors
-        collectors = [[s] for s in self.context.dmd.Monitors.getPerformanceMonitorNames()]
+        collectors = [
+            [s]
+            for s in self.context.dmd.Monitors.getPerformanceMonitorNames()
+        ]
 
         # priorities
-        priorities = [dict(name=s[0],
-                           value=int(s[1])) for s in
-                      self.context.dmd.getPriorityConversions()]
+        priorities = [
+            dict(name=s[0], value=int(s[1]))
+            for s in self.context.dmd.getPriorityConversions()
+        ]
 
         # production states
-        productionStates = [dict(name=s[0],
-                                 value=int(s[1])) for s in
-                            self.context.dmd.getProdStateConversions()]
+        productionStates = [
+            dict(name=s[0], value=int(s[1]))
+            for s in self.context.dmd.getProdStateConversions()
+        ]
 
         # timezone
         # to determine the timezone we look in the following order
@@ -264,8 +294,12 @@ class ZenossData(JavaScriptSnippet):
             Zenoss.USER_DATE_FORMAT = "%s" || "YYYY/MM/DD";
             Zenoss.USER_TIME_FORMAT = "%s" || "HH:mm:ss";
           })();
-        """ % ( collectors, priorities, productionStates, timezone, date_fmt, time_fmt )
+        """ % (
+            collectors, priorities, productionStates, timezone,
+            date_fmt, time_fmt
+        )
         return SCRIPT_TAG_TEMPLATE % snippet
+
 
 class BrowserState(JavaScriptSnippet):
     """

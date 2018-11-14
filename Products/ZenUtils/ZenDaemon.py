@@ -25,7 +25,9 @@ from twisted.logger import globalLogBeginner
 
 from Products.ZenMessaging.audit import audit
 from Products.ZenUtils.CmdBase import CmdBase
-from Products.ZenUtils.Utils import zenPath, HtmlFormatter, binPath, setLogLevel
+from Products.ZenUtils.Utils import (
+    zenPath, HtmlFormatter, binPath, setLogLevel
+)
 from Products.ZenUtils.Watchdog import Reporter
 from Products.Zuul.utils import safe_hasattr as hasattr
 from Products.ZenUtils.dumpthreads import dump_threads
@@ -121,8 +123,8 @@ class ZenDaemon(CmdBase):
                 socketOptions.append(arg)
         zensocket = binPath('zensocket')
         cmd = [zensocket, zensocket] + list(address) + socketOptions \
-                + ['--', sys.executable] + sys.argv \
-                + ['--useFileDescriptor=$privilegedSocket']
+            + ['--', sys.executable] + sys.argv \
+            + ['--useFileDescriptor=$privilegedSocket']
         self.log.debug(cmd)
         os.execlp(*cmd)
 
@@ -153,8 +155,11 @@ class ZenDaemon(CmdBase):
         """
         Create formating for log entries and set default log level
         """
-        # Initialize twisted logging to go nowhere. (it may be re-enabled by SIGUSR1)
-        globalLogBeginner.beginLoggingTo([lambda x: None], redirectStandardIO=False, discardBuffer=True)
+        # Initialize twisted logging to go nowhere.
+        # (it may be re-enabled by SIGUSR1)
+        globalLogBeginner.beginLoggingTo(
+            [lambda x: None], redirectStandardIO=False, discardBuffer=True
+        )
 
         # Setup python logging module
         rootLog = logging.getLogger()
@@ -166,7 +171,7 @@ class ZenDaemon(CmdBase):
                 '%(asctime)s %(levelname)s %(name)s: %(message)s')
 
         if self.options.logfileonly:
-            #clear out existing handlers
+            # clear out existing handlers
             hdlrs = rootLog.handlers
             for hdlr in hdlrs:
                 rootLog.removeHandler(hdlr)
@@ -184,8 +189,11 @@ class ZenDaemon(CmdBase):
             handler.setFormatter(formatter)
             rootLog.addHandler(handler)
 
-        if not (self.options.watchdogPath or self.options.daemon \
-                        or self.options.logfileonly):
+        if not any((
+            self.options.watchdogPath,
+            self.options.daemon,
+            self.options.logfileonly
+        )):
             # We are logging to the console
             # Find the stream handler and make it match our desired log level
             if self.options.weblog:
@@ -196,8 +204,11 @@ class ZenDaemon(CmdBase):
                 consoleHandler = logging.StreamHandler(sys.stderr)
                 rootLog.addHandler(consoleHandler)
 
-            for handler in (h for h in rootLog.handlers
-                    if isinstance(h, logging.StreamHandler)):
+            streamHandlers = (
+                h for h in rootLog.handlers
+                if isinstance(h, logging.StreamHandler)
+            )
+            for handler in streamHandlers:
                 handler.setLevel(self.options.logseverity)
                 handler.setFormatter(formatter)
 
@@ -403,38 +414,59 @@ class ZenDaemon(CmdBase):
         Standard set of command-line options.
         """
         CmdBase.buildOptions(self)
-        self.parser.add_option('--uid', dest='uid', default="zenoss",
-                help='User to become when running default:zenoss')
-        self.parser.add_option('-c', '--cycle', dest='cycle',
-                action="store_true", default=False,
-                help="Cycle continuously on cycleInterval from Zope")
-        self.parser.add_option('-D', '--daemon', default=False,
-                dest='daemon', action="store_true",
-                help="Launch into the background")
-        self.parser.add_option('--duallog', default=False,
-                dest='duallog', action="store_true",
-                help="Log to console and log file")
-        self.parser.add_option('--logfileonly', default=False,
-                dest='logfileonly', action="store_true",
-                help="Log to log file and not console")
-        self.parser.add_option('--weblog', default=False,
-                dest='weblog', action="store_true",
-                help="output log info in HTML table format")
-        self.parser.add_option('--watchdog', default=False,
-                dest='watchdog', action="store_true",
-                help="Run under a supervisor which will restart it")
-        self.parser.add_option('--watchdogPath', default=None,
-                dest='watchdogPath',
-                help="The path to the watchdog reporting socket")
-        self.parser.add_option('--starttimeout',
-                dest='starttimeout', type="int",
-                help="Wait seconds for initial heartbeat")
-        self.parser.add_option('--socketOption',
-                dest='socketOption', default=[], action='append',
-                help="Set listener socket options. "
-                "For option details: man 7 socket")
-        self.parser.add_option('--heartbeattimeout',
-                dest='heartbeatTimeout',
-                type='int',
-                help="Set a heartbeat timeout in seconds for a daemon",
-                default=900)
+        self.parser.add_option(
+            '--uid',
+            dest='uid', default="zenoss",
+            help='User to become when running default:zenoss'
+        )
+        self.parser.add_option(
+            '-c', '--cycle',
+            dest='cycle', action="store_true", default=False,
+            help="Cycle continuously on cycleInterval from Zope"
+        )
+        self.parser.add_option(
+            '-D', '--daemon',
+            default=False, dest='daemon', action="store_true",
+            help="Launch into the background"
+        )
+        self.parser.add_option(
+            '--duallog',
+            default=False, dest='duallog', action="store_true",
+            help="Log to console and log file"
+        )
+        self.parser.add_option(
+            '--logfileonly',
+            default=False, dest='logfileonly', action="store_true",
+            help="Log to log file and not console"
+        )
+        self.parser.add_option(
+            '--weblog',
+            default=False, dest='weblog', action="store_true",
+            help="output log info in HTML table format"
+        )
+        self.parser.add_option(
+            '--watchdog',
+            default=False, dest='watchdog', action="store_true",
+            help="Run under a supervisor which will restart it"
+        )
+        self.parser.add_option(
+            '--watchdogPath',
+            default=None, dest='watchdogPath',
+            help="The path to the watchdog reporting socket"
+        )
+        self.parser.add_option(
+            '--starttimeout',
+            dest='starttimeout', type="int",
+            help="Wait seconds for initial heartbeat"
+        )
+        self.parser.add_option(
+            '--socketOption',
+            dest='socketOption', default=[], action='append',
+            help="Set listener socket options. "
+            "For option details: man 7 socket"
+        )
+        self.parser.add_option(
+            '--heartbeattimeout',
+            dest='heartbeatTimeout', type='int', default=900,
+            help="Set a heartbeat timeout in seconds for a daemon"
+        )
