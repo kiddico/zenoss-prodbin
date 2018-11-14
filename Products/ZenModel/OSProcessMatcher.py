@@ -10,7 +10,7 @@
 import logging
 import re
 
-from md5 import md5
+from hashlib import md5
 from sre_parse import parse_template
 
 from Products.ZenUtils.Utils import prepId

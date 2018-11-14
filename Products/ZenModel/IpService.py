@@ -15,7 +15,8 @@ is defined by a protocol type (udp/tcp) and a port number.
 
 """
 
-from Globals import DTMLFile, InitializeClass
+from App.special_dtml import DTMLFile
+from AccessControl.class_init import InitializeClass
 from AccessControl import ClassSecurityInfo
 from Products.ZenModel.ZenossSecurity import *
 

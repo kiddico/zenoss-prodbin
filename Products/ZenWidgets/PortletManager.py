@@ -8,10 +8,11 @@
 ##############################################################################
 
 import os
-import md5
+from hashlib import md5
 
-from Globals import InitializeClass, DevelopmentMode
 from AccessControl import getSecurityManager
+from AccessControl.class_init import InitializeClass
+from Globals import DevelopmentMode
 
 from Products.ZenRelations.RelSchema import ToManyCont, ToOne
 from Products.ZenModel.ZenModelRM import ZenModelRM
@@ -24,7 +25,7 @@ from .Portlet import Portlet
 
 
 def getuid():
-    return md5.md5(os.urandom(10)).hexdigest()[:8]
+    return md5(os.urandom(10)).hexdigest()[:8]
 
 
 class DuplicatePortletRegistration(Exception):

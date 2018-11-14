@@ -7,13 +7,13 @@
 #
 ##############################################################################
 
-
 """ZenDaemon
 
 Base class for making daemon programs
 """
 
 import re
+import signal
 import sys
 import os
 import pwd
@@ -22,13 +22,14 @@ import logging
 
 from twisted.python import log as twisted_log
 from twisted.logger import globalLogBeginner
+from twisted.internet import reactor
 
 from Products.ZenMessaging.audit import audit
 from Products.ZenUtils.CmdBase import CmdBase
 from Products.ZenUtils.Utils import (
     zenPath, HtmlFormatter, binPath, setLogLevel
 )
-from Products.ZenUtils.Watchdog import Reporter
+from Products.ZenUtils.Watchdog import Watcher, Reporter, log
 from Products.Zuul.utils import safe_hasattr as hasattr
 from Products.ZenUtils.dumpthreads import dump_threads
 
@@ -63,7 +64,6 @@ class ZenDaemon(CmdBase):
         self.keeproot = keeproot
         self.reporter = None
         self.fqdn = socket.getfqdn()
-        from twisted.internet import reactor
         reactor.addSystemEventTrigger('before', 'shutdown', self.sigTerm)
         if not noopts:
             if self.options.daemon:
@@ -216,7 +216,6 @@ class ZenDaemon(CmdBase):
 
         # Allow the user to dynamically lower and raise the logging
         # level without restarts.
-        import signal
         try:
             signal.signal(signal.SIGUSR1, self.sighandler_USR1)
         except ValueError:
@@ -319,8 +318,6 @@ class ZenDaemon(CmdBase):
         """
         Signal handler for the SIGTERM signal.
         """
-        from Products.ZenUtils.Utils import unused
-        unused(signum, frame)
         stop = getattr(self, "stop", None)
         if callable(stop):
             stop()
@@ -375,7 +372,6 @@ class ZenDaemon(CmdBase):
         """
         Watch the specified daemon and restart it if necessary.
         """
-        from Products.ZenUtils.Watchdog import Watcher, log
         log.setLevel(self.options.logseverity)
         cmd = sys.argv[:]
         if '--watchdog' in cmd:

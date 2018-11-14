@@ -15,7 +15,7 @@ from uuid import uuid4
 
 import transaction
 
-from Globals import InitializeClass
+from AccessControl.class_init import InitializeClass
 from AccessControl import ClassSecurityInfo
 from Acquisition import aq_base
 from AccessControl import getSecurityManager

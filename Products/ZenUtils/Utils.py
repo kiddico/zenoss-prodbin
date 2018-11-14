@@ -16,7 +16,6 @@ General utility functions module
 
 import sys
 import select
-import popen2
 import fcntl
 import time
 import os
@@ -45,7 +44,6 @@ from subprocess import check_call, call, PIPE, STDOUT, Popen
 from ZODB.POSException import ConflictError
 log = logging.getLogger("zen.Utils")
 
-from popen2 import Popen4
 from twisted.internet import task, reactor, defer
 from Acquisition import aq_base, aq_inner, aq_parent
 from zExceptions import NotFound
@@ -1273,7 +1271,11 @@ def executeCommand(cmd, REQUEST, write=None):
                 response.flush()
             write = _write
         log.info('Executing command: %s' % ' '.join(cmd))
-        f = Popen4(cmd)
+        try:
+            f = Popen(cmd, stdout=PIPE, close_fds=True)
+        except Exception:
+            log.exception("Failed to execute command: %s", cmd)
+            raise
         while 1:
             s = f.fromchild.readline()
             if not s:
@@ -1374,21 +1376,24 @@ def executeStreamCommand(cmd, writefunc, timeout=30):
     @param timeout: maxium number of seconds to wait for the command to execute
     @type timeout: number
     """
-    child = popen2.Popen4(shlex.split(cmd))
+    try:
+        child = Popen(shlex.split(cmd), stdout=PIPE, close_fds=True)
+    except Exception as ex:
+        writefunc("Failed to run %s: %s" % (cmd, ex))
+        return
     flags = fcntl.fcntl(child.fromchild, fcntl.F_GETFL)
     fcntl.fcntl(child.fromchild, fcntl.F_SETFL, flags | os.O_NDELAY)
     pollPeriod = 1
     endtime = time.time() + timeout
     firstPass = True
-    while time.time() < endtime and (
-        firstPass or child.poll()==-1):
+    while time.time() < endtime and (firstPass or child.poll() == -1):
         firstPass = False
-        r,w,e = select.select([child.fromchild],[],[],pollPeriod)
+        r, w, e = select.select([child.fromchild], [], [], pollPeriod)
         if r:
             t = child.fromchild.read()
             if t:
                 writefunc(t)
-    if child.poll()==-1:
+    if child.poll() == -1:
         writefunc('Command timed out')
         import signal
         os.kill(child.pid, signal.SIGKILL)
@@ -1784,7 +1789,7 @@ def load_config_override(file, package=None, execute=True):
     key = (file, package)
     if not key in _LOADED_CONFIGS:
         from zope.configuration import xmlconfig
-        from Products.Five.zcml import _context
+        from Zope2.App.zcml import _context
         xmlconfig.includeOverrides(_context, file, package=package)
         if execute:
             _context.execute_actions()

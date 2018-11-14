@@ -18,7 +18,8 @@ __version__ = "$Revision: 1.11 $"[11:-2]
 
 import re
 
-from Globals import DTMLFile, InitializeClass
+from App.special_dtml import DTMLFile
+from AccessControl.class_init import InitializeClass
 from AccessControl import ClassSecurityInfo
 from AccessControl import Permissions as permissions
 from Products.ZenModel.ZenossSecurity import *

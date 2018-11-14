@@ -15,7 +15,8 @@ Organizes Monitors
 
 from zope.component import createObject
 
-from Globals import DTMLFile, InitializeClass
+from App.special_dtml import DTMLFile
+from AccessControl.class_init import InitializeClass
 from AccessControl import ClassSecurityInfo, Permissions as permissions
 from Acquisition import aq_base
 from BTrees.OOBTree import OOBTree

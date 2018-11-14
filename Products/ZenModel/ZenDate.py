@@ -8,7 +8,7 @@
 ##############################################################################
 
 from DateTime import DateTime
-from Globals import Persistent
+from Persistence import Persistent
 from Products.ZenUtils import Time
 
 

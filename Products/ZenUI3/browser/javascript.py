@@ -7,9 +7,9 @@
 #
 ##############################################################################
 
-import md5
 import os
 
+from hashlib import md5
 from urlparse import urljoin
 
 from Products.Five.viewlet.viewlet import ViewletBase
@@ -169,7 +169,7 @@ class ExtDirectViewlet(JavaScriptSrcViewlet):
             # append the extdirect request with a hash or all routers
             # so that it is updated when a new zenpack is installed
             routernames = sorted(r['name'] for r in allDirectRouters.values())
-            self.directHash = md5.new(" ".join(routernames)).hexdigest()
+            self.directHash = md5(" ".join(routernames)).hexdigest()
         path = self.path + "?v=" + self.directHash
         return SCRIPT_TAG_SRC_TEMPLATE % path
 

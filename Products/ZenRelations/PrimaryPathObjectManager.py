@@ -14,9 +14,9 @@ import logging
 
 import App.Undo
 
-from AccessControl.Role import RoleManager
 from Acquisition import Implicit, aq_base
 from OFS.ObjectManager import ObjectManager
+from OFS.role import RoleManager
 from Products.BTreeFolder2.BTreeFolder2 import BTreeFolder2
 
 from RelCopySupport import RelCopyContainer

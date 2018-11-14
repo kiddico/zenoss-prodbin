@@ -16,7 +16,8 @@ from OFS.PropertyManager import PropertyManager
 from zExceptions import BadRequest
 from ZPublisher.Converters import type_converters
 
-from Globals import DTMLFile, InitializeClass
+from App.special_dtml import DTMLFile
+from AccessControl.class_init import InitializeClass
 
 from Products.ZenMessaging.audit import audit
 from Products.ZenModel.ZenossSecurity import (

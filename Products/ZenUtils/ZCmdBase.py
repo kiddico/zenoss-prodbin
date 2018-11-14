@@ -7,12 +7,8 @@
 #
 ##############################################################################
 
-
 """ZenDaemon
-
-$Id: ZC.py,v 1.9 2004/02/16 17:19:31 edahl Exp $"""
-
-__version__ = "$Revision: 1.9 $"[11:-2]
+"""
 
 import time
 from collections import Iterator
@@ -23,6 +19,9 @@ from zope.component import getUtility
 
 from AccessControl.SecurityManagement import newSecurityManager
 from AccessControl.SecurityManagement import noSecurityManager
+from ZPublisher.HTTPRequest import HTTPRequest
+from ZPublisher.HTTPResponse import HTTPResponse
+from ZPublisher.BaseRequest import RequestContainer
 
 from Products.ZenUtils.Utils import getObjByPath, zenPath
 from Products.ZenUtils.ZodbFactory import IZodbFactoryLookup
@@ -236,9 +235,6 @@ class ZCmdBase(ZenDaemon):
             self.dmd = self.dataroot
 
     def getContext(self, app):
-        from ZPublisher.HTTPRequest import HTTPRequest
-        from ZPublisher.HTTPResponse import HTTPResponse
-        from ZPublisher.BaseRequest import RequestContainer
         resp = HTTPResponse(stdout=None)
         env = {
             'SERVER_NAME': 'localhost',

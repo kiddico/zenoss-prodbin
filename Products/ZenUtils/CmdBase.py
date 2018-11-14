@@ -26,16 +26,15 @@ from optparse import (
 )
 from urllib import quote
 
+import Globals
+import Products.ZenWidgets
 import zope.component
 
-from Products.Five import zcml
+from OFS.Application import import_products
 from zope.traversing.adapters import DefaultTraversable
+from Zope2.App import zcml
 
-# There is a nasty incompatibility between pkg_resources and twisted.
-# This pkg_resources import works around the problem.
-# See http://dev.zenoss.org/trac/ticket/3146 for details
-from Products.ZenUtils.PkgResources import pkg_resources
-
+from Products.ZenossStartup import import_zenpacks
 from Products.ZenUtils.GlobalConfig import (
     _convertConfigLinesToArguments, applyGlobalConfToParser
 )
@@ -43,7 +42,11 @@ from Products.ZenUtils.Utils import (
     unused, load_config_override, zenPath, getAllParserOptionsGen
 )
 
-unused(pkg_resources)
+try:
+    from Products.ZenModel.ZenossInfo import ZenossInfo
+    VERSION = str(ZenossInfo('').getZenossVersion())
+except Exception:
+    from Products.ZenModel.ZVersion import VERSION
 
 
 class DMDError:
@@ -96,26 +99,21 @@ class LogSeverityOption(Option):
 
 
 class CmdBase(object):
+    """Class used for all Zenoss commands
+    """
 
     doesLogging = True
 
-    """
-    Class used for all Zenoss commands
-    """
     def __init__(self, noopts=0, args=None, should_log=None):
         zope.component.provideAdapter(DefaultTraversable, (None,))
         # This explicitly loads all of the products - must happen first!
-        from OFS.Application import import_products
-        import_products()
+        # import_products()
         # make sure we aren't in debug mode
-        import Globals
         Globals.DevelopmentMode = False
         # We must import ZenossStartup at this point so that all Zenoss daemons
         # and tools will have any ZenPack monkey-patched methods available.
-        import Products.ZenossStartup
-        unused(Products.ZenossStartup)
+        import_zenpacks()
         zcml.load_site()
-        import Products.ZenWidgets
         load_config_override('scriptmessaging.zcml', Products.ZenWidgets)
 
         self.usage = "%prog [options]"
@@ -157,16 +155,11 @@ class CmdBase(object):
         Create the options parser
         """
         if not self.parser:
-            from Products.ZenModel.ZenossInfo import ZenossInfo
-            try:
-                zinfo = ZenossInfo('')
-                version = str(zinfo.getZenossVersion())
-            except Exception:
-                from Products.ZenModel.ZVersion import VERSION
-                version = VERSION
-            self.parser = OptionParser(usage=self.usage,
-                                       version="%prog " + version,
-                                       option_class=LogSeverityOption)
+            self.parser = OptionParser(
+                usage=self.usage,
+                version="%prog " + VERSION,
+                option_class=LogSeverityOption
+            )
 
     def buildOptions(self):
         """

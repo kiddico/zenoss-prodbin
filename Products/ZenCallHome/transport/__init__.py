@@ -16,10 +16,9 @@ import time
 import zlib
 from datetime import datetime
 
-from persistent.dict import PersistentDict
+from Persistence import Persistent, PersistentMapping as PersistentDict
 from zope.component import getUtilitiesFor
 
-from Globals import Persistent
 from Products.ZenCallHome.transport.crypt import encrypt, decrypt
 from Products.ZenCallHome.transport.interfaces import IReturnPayloadProcessor
 from Products.ZenUtils.Version import Version

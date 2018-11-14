@@ -23,8 +23,8 @@ from __future__ import division
 
 import calendar
 
-from Globals import Persistent
 from DateTime import DateTime
+from Persistence import Persistent
 
 defaultColor = "#d02090"
 

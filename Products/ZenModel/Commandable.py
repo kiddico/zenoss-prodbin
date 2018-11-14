@@ -17,17 +17,17 @@ import cgi
 import fcntl
 import logging
 import os
-import popen2
 import select
 import signal
 import sys
 import time
 
 from DateTime import DateTime
+from subprocess import Popen, PIPE
 
+from AccessControl.class_init import InitializeClass
 from AccessControl import ClassSecurityInfo
 from Acquisition import aq_base, aq_chain
-from Globals import InitializeClass
 from Products.PageTemplates.Expressions import getEngine
 from UserCommand import UserCommand
 
@@ -190,7 +190,11 @@ class Commandable:
         ''' Execute the given UserCommand on the given target
         '''
         compiled = self.compile(cmd, target)
-        child = popen2.Popen4(compiled)
+        try:
+            child = Popen(compiled, stdout=PIPE, close_fds=True)
+        except Exception:
+            log.exception("Failed to execute command: %s", cmd)
+            return
         flags = fcntl.fcntl(child.fromchild, fcntl.F_GETFL)
         fcntl.fcntl(child.fromchild, fcntl.F_SETFL, flags | os.O_NDELAY)
         timeout = getattr(

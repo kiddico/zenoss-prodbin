@@ -37,8 +37,8 @@ from Products.PluginIndexes.FieldIndex.FieldIndex import FieldIndex
 from ManagedEntity import ManagedEntity
 
 from AccessControl import ClassSecurityInfo
-from Globals import DTMLFile
-from Globals import InitializeClass
+from App.special_dtml import DTMLFile
+from AccessControl.class_init import InitializeClass
 from DateTime import DateTime
 from ZODB.POSException import POSError
 from BTrees.OOBTree import OOSet

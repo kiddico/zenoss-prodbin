@@ -16,8 +16,9 @@ dmd root and loaded ZenPacks, like zendmd.
 
 from zope.component import getUtility
 
-from AccessControl.SecurityManagement import newSecurityManager
-from AccessControl.SecurityManagement import noSecurityManager
+from AccessControl.SecurityManagement import (
+    newSecurityManager, noSecurityManager
+)
 from transaction import commit
 from Products.ZenUtils.Utils import getObjByPath, zenPath, set_context
 from Products.ZenUtils.CmdBase import CmdBase

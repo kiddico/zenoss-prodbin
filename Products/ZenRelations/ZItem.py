@@ -14,9 +14,6 @@ import time
 import Acquisition
 import App
 import App.Management
-import AccessControl
-import AccessControl.Role
-import AccessControl.Owned
 import App.Common
 
 from AccessControl import getSecurityManager, Unauthorized
@@ -27,6 +24,7 @@ from App.special_dtml import DTMLFile
 from ComputedAttribute import ComputedAttribute
 from ExtensionClass import Base
 from OFS.CopySupport import CopySource
+from OFS.owner import Owned
 from OFS.Traversable import Traversable
 from zExceptions.ExceptionFormatter import format_exception
 from zExceptions import Redirect
@@ -37,10 +35,7 @@ from Products.ZenUtils.Utils import unused
 logger = logging.getLogger()
 
 
-class ZItem(
-    Base, CopySource, App.Management.Tabs, Traversable,
-    AccessControl.Owned.Owned,
-):
+class ZItem(Base, CopySource, App.Management.Tabs, Traversable, Owned):
     """A common base class for simple, non-container objects.
     """
 
@@ -83,7 +78,7 @@ class ZItem(
     # Default propertysheet info:
     __propsets__ = ()
 
-    manage_options = (AccessControl.Owned.Owned.manage_options,)
+    manage_options = (Owned.manage_options,)
 
     # Attributes that must be acquired
     REQUEST = Acquisition.Acquired

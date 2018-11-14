@@ -11,7 +11,8 @@
 import logging
 log = logging.getLogger("zen.EventView")
 
-from Globals import DTMLFile, InitializeClass
+from App.special_dtml import DTMLFile
+from AccessControl.class_init import InitializeClass
 from AccessControl import ClassSecurityInfo
 from Acquisition import aq_parent
 from zope.interface import implements

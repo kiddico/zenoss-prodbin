@@ -24,8 +24,8 @@ log = logging.getLogger("zen.Relations")
 from PrimaryPathObjectManager import PrimaryPathObjectManager
 from ZenPropertyManager import ZenPropertyManager
 
-from Globals import DTMLFile
-from Globals import InitializeClass
+from App.special_dtml import DTMLFile
+from AccessControl.class_init import InitializeClass
 from AccessControl import ClassSecurityInfo
 from Acquisition import aq_base
 from App.Management import Tabs

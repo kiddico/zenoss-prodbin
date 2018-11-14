@@ -23,8 +23,8 @@ from zope.interface import implements
 from AccessControl import ClassSecurityInfo
 from AccessControl import getSecurityManager
 from OFS.OrderedFolder import OrderedFolder
-from Globals import DTMLFile
-from Globals import InitializeClass
+from App.special_dtml import DTMLFile
+from AccessControl.class_init import InitializeClass
 from Globals import DevelopmentMode
 from Products.ZenModel.SiteError import SiteError
 from Products.ZenModel.ZenModelBase import ZenModelBase
