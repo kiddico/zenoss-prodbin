@@ -1,20 +1,23 @@
 ##############################################################################
-# 
+#
 # Copyright (C) Zenoss, Inc. 2012, all rights reserved.
-# 
+#
 # This content is made available according to terms specified in
 # License.zenoss under the directory where your Zenoss product is installed.
-# 
+#
 ##############################################################################
 
+from __future__ import absolute_import
 
 import os
 import errno
 import logging
 
-from Products.ZenUtils.celeryintegration import get_task_logger
+from inspect import getargspec
 from zope.dottedname.resolve import resolve
-from celery.utils import fun_takes_kwargs
+
+from Products.ZenUtils.celeryintegration import get_task_logger
+
 from .jobs import Job
 from .exceptions import FacadeMethodJobFailed
 
@@ -24,20 +27,21 @@ class FacadeMethodJob(Job):
     Serializes the details of a facade method call for later execution by
     zenjobs.
     """
+
     @classmethod
     def getJobType(cls):
         return "Python API"
 
     @classmethod
     def getJobDescription(cls, facadefqdn, method, *args, **kwargs):
-        facade = facadefqdn.split('.')[-1]
-        return "%s.%s %s" % (facade, method, args[0] if args else '')
+        facade = facadefqdn.split(".")[-1]
+        return "%s.%s %s" % (facade, method, args[0] if args else "")
 
     @property
     def log(self):
         if self._log is None:
             # Get log directory, ensure it exists
-            logdir = self._get_config('job-log-path')
+            logdir = self._get_config("job-log-path")
             try:
                 os.makedirs(logdir)
             except OSError as e:
@@ -45,19 +49,23 @@ class FacadeMethodJob(Job):
                     raise
             # Make the logfile path and store it in the backend for later
             # retrieval
-            logfile = os.path.join(logdir, '%s.log' % self.request.id)
+            logfile = os.path.join(logdir, "%s.log" % self.request.id)
             self.setProperties(logfile=logfile)
             self._log = get_task_logger(self.request.id)
-            self._log.setLevel(self._get_config('logseverity'))
+            self._log.setLevel(self._get_config("logseverity"))
             handler = logging.FileHandler(logfile)
-            handler.setFormatter(logging.Formatter(
-                "%(asctime)s %(levelname)s zen.Job: %(message)s"))
+            handler.setFormatter(
+                logging.Formatter(
+                    "%(asctime)s %(levelname)s zen.Job: %(message)s"
+                )
+            )
             self._log.handlers = [handler]
         return self._log
 
     def _run(self, facadefqdn, method, *args, **kwargs):
-        # Pass the job log to the facade method so that it can log to the job log.
-        kwargs['joblog'] = self.log
+        # Pass the job log to the facade method so that it can log
+        # to the job log.
+        kwargs["joblog"] = self.log
         self.args = args
         self.kwargs = kwargs
         facadeclass = resolve(facadefqdn)
@@ -71,11 +79,21 @@ class FacadeMethodJob(Job):
         # Some old facade method jobs return None.
         if result:
             try:
-                if not result['success']:
+                if not result["success"]:
                     raise FacadeMethodJobFailed
-                return result['message']
+                return result["message"]
             except FacadeMethodJobFailed:
                 raise
             except (TypeError, KeyError):
-                self.log.error('The output from job {} is not in the right format.'
-                        .format(self.request.id))
+                self.log.error(
+                    "The output from job {} is not in the right format.",
+                    self.request.id
+                )
+
+
+def fun_takes_kwargs(fun, kwlist=[]):
+    # Copied from Celery source
+    spec = getattr(fun, 'argspec', getargspec(fun))
+    if spec.keywords is not None:
+        return kwlist
+    return [kw for kw in kwlist if kw in spec.args]
