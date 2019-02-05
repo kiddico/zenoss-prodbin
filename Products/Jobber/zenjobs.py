@@ -9,4 +9,9 @@
 
 from __future__ import absolute_import
 
+from celery import Celery
 
+from . import config
+
+app = Celery("zenjobs")
+app.config_from_object(config)

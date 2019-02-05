@@ -14,18 +14,18 @@ environment has been set up first.
 
 # NOTE: the order of statements in this module is important.
 
-LOADER_FQCN = "Products.ZenUtils.celeryintegration.ZenossLoader"
+# LOADER_FQCN = "Products.ZenUtils.celeryintegration.ZenossLoader"
 
 import os
 # Set the 'loader' class the default celery app will use.  This setting
 # must be made at this point before any other celery-related import.
-os.environ.setdefault("CELERY_LOADER", LOADER_FQCN)
+# os.environ.setdefault("CELERY_LOADER", LOADER_FQCN)
 
 from celery import current_app, states, chain
 from celery.utils.log import get_task_logger
 
-from .loader import ZenossLoader
-from .backend import ZODBBackend
+# from .loader import ZenossLoader
+# from .backend import ZODBBackend
 
 # The Task must be imported AFTER ZenossLoader and ZODBBackend are imported,
 # otherwise these names will not be available when Task is imported.

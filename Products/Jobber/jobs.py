@@ -7,36 +7,57 @@
 #
 ##############################################################################
 
+from __future__ import absolute_import
 
-import sys
-import os
-import time
-import logging
-import Queue
 import errno
+import logging
+import os
+import Queue
 import signal
-import subprocess
 import socket
+import subprocess
+import sys
+import time
+
 from datetime import datetime
 
 import transaction
 from AccessControl.SecurityManagement import (
-        newSecurityManager, noSecurityManager
-    )
+    newSecurityManager, noSecurityManager
+)
+from celery.utils.log import get_task_logger
 from Products.CMFCore.utils import getToolByName
 from ZODB.transact import transact
 
 from Products.ZenUtils.Utils import (
-        InterruptableThread, ThreadInterrupt, LineReader
-    )
+    InterruptableThread, ThreadInterrupt, LineReader
+)
 from Products.ZenUtils.celeryintegration import (
-        current_app, Task, states, get_task_logger
-    )
+    current_app, Task, states
+)
 from Products.ZenEvents import Event
 
 from .exceptions import NoSuchJobException, SubprocessJobFailed
+from .tasks import ZenTask
+from .zenjobs import app
 
 _MARKER = object()
+
+
+@app.task(bind=True, base=ZenTask)
+def job(self, *args, **kw):
+    deviceNames = [
+        device.id for device in self.dmd.Devices.Server.Linux.devices()
+    ]
+    # attrs = ", ".join(dir(self))
+    log = get_task_logger("job")
+    log.error("device names: %s", deviceNames)
+    return deviceNames
+
+
+class Job(ZenTask):
+    """
+    """
 
 
 class JobAborted(ThreadInterrupt):
@@ -51,8 +72,8 @@ class SubJob(object):
     instances of this class.
     """
 
-    def __init__(self, job,
-            args=None, kwargs=None, description=None, options={}):
+    def __init__(
+            self, job, args=None, kwargs=None, description=None, options={}):
         """
         Initialize an instance of SubJob.
 
@@ -73,7 +94,7 @@ class SubJob(object):
         self.options = options.copy()
 
 
-class Job(Task):
+class OldJob(Task):
     """
     Base class for jobs.
     """
@@ -107,8 +128,10 @@ class Job(Task):
         and options.
         """
         job = current_app.tasks[cls.name]
-        return SubJob(job, args=args, kwargs=kwargs,
-                description=description, options=options)
+        return SubJob(
+            job, args=args, kwargs=kwargs,
+            description=description, options=options
+        )
 
     def setProperties(self, **properties):
         self.app.backend.update(self.request.id, **properties)
@@ -357,7 +380,7 @@ class Job(Task):
         os.kill(os.getpid(), signal.SIGTERM)
 
 
-class SubprocessJob(Job):
+class SubprocessJob(OldJob):
 
     @classmethod
     def getJobType(cls):
@@ -380,7 +403,10 @@ class SubprocessJob(Job):
         originalFormatter = handler.formatter
         lineFormatter = logging.Formatter('%(message)s')
         try:
-            self.log.info("Spawning subprocess: %s", SubprocessJob.getJobDescription(cmd))
+            self.log.info(
+                "Spawning subprocess: %s",
+                SubprocessJob.getJobDescription(cmd)
+            )
             process = subprocess.Popen(cmd, bufsize=1, env=environ,
                                        stdout=subprocess.PIPE,
                                        stderr=subprocess.STDOUT)
@@ -416,7 +442,9 @@ class SubprocessJob(Job):
             job_record = self.dmd.JobManager.getJob(self.request.id)
             description = job_record.job_description
             summary = 'Job "%s" finished with failure result.' % description
-            message = "exit code %s for %s; %s" % (exitcode, SubprocessJob.getJobDescription(cmd), output)
+            message = "exit code %s for %s; %s" % (
+                exitcode, SubprocessJob.getJobDescription(cmd), output
+            )
 
             self.dmd.ZenEventManager.sendEvent({
                 'device': device,
@@ -426,11 +454,12 @@ class SubprocessJob(Job):
                 'message': message,
                 'summary': summary,
             })
-            
+
             raise SubprocessJobFailed(exitcode)
         return exitcode
 
-class PruneJob(Job):
+
+class PruneJob(OldJob):
     """
     Prune old jobs in the job catalog.
     """
