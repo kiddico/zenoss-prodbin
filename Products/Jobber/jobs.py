@@ -9,6 +9,7 @@
 
 from __future__ import absolute_import
 
+import abc
 import errno
 import logging
 import os
@@ -50,14 +51,293 @@ def job(self, *args, **kw):
         device.id for device in self.dmd.Devices.Server.Linux.devices()
     ]
     # attrs = ", ".join(dir(self))
-    log = get_task_logger("job")
-    log.error("device names: %s", deviceNames)
+    log = logging.getLogger("zen.zenjobs.job")
+    log.info("device names: %s", deviceNames)
     return deviceNames
 
 
-class Job(ZenTask):
+class AbstractJob(object):
+
+    __init__(self, *args, **kw)
+
+    dmd : (zodb) /zport/dmd
+    log : logging.Logger
+    request : celery.Request
+
+    _get_config(option_name : String) -> String
+
+    _run(*args, **kw) -> None
+
+    @classmethod
+    makeSubJob(args=None, kwargs=None, description=None)
+
+    @classmethod
+    getJobType(cls) -> String
+
+    @classmethod
+    getJobDescription(cls, *args, **kw) -> String
+
+
+class abstractclassmethod(classmethod):
+
+    __isabstractmethod__ = True
+
+    def __init__(cls, method):
+        method.__isabstractmethod__ = True
+        super(abstractclassmethod, cls).__init__(method)
+
+
+class abstractstaticmethod(classmethod):
+
+    __isabstractmethod__ = True
+
+    def __init__(cls, method):
+        method.__isabstractmethod__ = True
+        super(abstractstaticmethod, cls).__init__(method)
+
+
+class Job(object):
+    """Base class for jobs.
     """
-    """
+
+    __metaclass__ = abc.ABCMeta
+
+    def __init__(self, *args, **kwargs):
+        self.log = kwargs.pop("log")
+        self.dmd = kwargs.pop("dmd")
+        self.request = kwargs.pop("request")
+        super(Job, self).__init__(*args, **kwargs)
+
+    @classmethod
+    def getJobType(cls):
+        """
+        """
+        return cls.name
+
+    @abstractclassmethod
+    def getJobDescription(cls, *args, **kwargs):
+        """
+        This is expected to be overridden in subclasses for nice descriptions.
+        """
+        raise NotImplementedError(
+            "Abtract classmethod not implemented: %s.getJobDescription"
+            % cls.__name__
+        )
+
+    @classmethod
+    def makeSubJob(cls, args=None, kwargs=None, description=None, **options):
+        """
+        Return a SubJob instance that wraps the given job and its arguments
+        and options.
+        """
+        job = current_app.tasks[cls.name]
+        return SubJob(
+            job, args=args, kwargs=kwargs,
+            description=description, options=options
+        )
+
+    def setProperties(self, **properties):
+        # deprecated
+        pass
+
+    # def _get_config(self, key, default=_MARKER):
+    #     opts = getattr(self.app, 'db_options', None)
+    #     sanitized_key = key.replace("-", "_")
+    #     value = getattr(opts, sanitized_key, _MARKER)
+    #     if value is _MARKER:
+    #         raise ValueError("Config option %s is not defined" % key)
+    #     return value
+
+    # @property
+    # def log(self):
+    #     if self._log is None:
+    #         # Get log directory, ensure it exists
+    #         logdir = self._get_config('job-log-path')
+    #         try:
+    #             os.makedirs(logdir)
+    #         except OSError as e:
+    #             if e.errno != errno.EEXIST:
+    #                 raise
+    #         # Make the logfile path and store it in the backend for later
+    #         # retrieval
+    #         logfile = os.path.join(logdir, '%s.log' % self.request.id)
+    #         self.setProperties(logfile=logfile)
+    #         self._log = get_task_logger(self.request.id)
+    #         self._log.setLevel(self._get_config('logseverity'))
+    #         handler = logging.FileHandler(logfile)
+    #         handler.setFormatter(logging.Formatter(
+    #             "%(asctime)s %(levelname)s zen.Job: %(message)s"))
+    #         self._log.handlers = [handler]
+    #     return self._log
+
+    # @property
+    # def dmd(self):
+    #     """
+    #     Gets the dmd object from the backend
+    #     """
+    #     return self.app.backend.dmd
+
+    def _do_run(self, request, args=None, kwargs=None):
+        # This method runs a separate thread.
+        args = args or ()
+        kwargs = kwargs or {}
+        job_id = request.id
+        job_record = self.dmd.JobManager.getJob(job_id)
+        # Log in as the job's user
+        self.log.debug("Logging in as %s", job_record.user)
+        utool = getToolByName(self.dmd.getPhysicalRoot(), 'acl_users')
+        user = utool.getUserById(job_record.user)
+        if user is None:
+            user = self.dmd.zport.acl_users.getUserById(job_record.user)
+        user = user.__of__(utool)
+        newSecurityManager(None, user)
+
+        @transact
+        def _runjob():
+            result = self._run(*args, **kwargs)
+            if job_id in self._aborted_tasks:
+                raise JobAborted("Job %s aborted" % job_id)
+            return result
+
+        # Run it!
+        self.log.info("Starting job %s (%s)", job_id, self.name)
+        try:
+            # Make request available to self.request property
+            # (because self.request is thread local)
+            self.request_stack.push(request)
+            try:
+                result = _runjob()
+                self.log.info(
+                    "Job %s finished with result %s", job_id, result
+                )
+                self._result_queue.put(result)
+            except JobAborted:
+                self.log.warning("Job %s aborted.", job_id)
+                transaction.abort()
+                # re-raise JobAborted to allow celery to perform job
+                # failure and clean-up work.  A monkeypatch has been
+                # installed to prevent this exception from being written to
+                # the log.
+                raise
+        except Exception as e:
+            e.exc_info = sys.exc_info()
+            self._result_queue.put(e)
+        finally:
+            # Remove the request
+            self.request_stack.pop()
+            # Log out; probably unnecessary but can't hurt
+            noSecurityManager()
+            self._aborted_tasks.discard(job_id)
+            # release database connection acquired by the self.dmd
+            # reference ealier in this method.
+            self.backend.reset()
+
+    def run(self, *args, **kwargs):
+        job_id = self.request.id
+        self.log.info("Job %s (%s) received", job_id, self.name)
+        return self._run(*args, **kwargs)
+
+    # def on_failure(self, exc, task_id, args, kwargs, einfo):
+    #     # Because JobAborted is an exception, celery will change the state
+    #     # to FAILURE once the task completes. Since we want it to remain
+    #     # ABORTED, we'll set it back here.
+    #     if isinstance(exc, JobAborted):
+    #         self.update_state(state=states.ABORTED)
+
+    def _run(self, *args, **kwargs):
+        raise NotImplementedError("_run must be implemented")
+
+    # def _sigtermhandler(self, signum, frame):
+    #     self.log.debug("%s received signal %s", self, signum)
+    #     # Interrupt the runner_thread.
+    #     self._runner_thread.interrupt(JobAborted)
+    #     # Wait for the runner_thread to exit.
+    #     while self._runner_thread.is_alive():
+    #         time.sleep(0.01)
+    #     # Install the original SIGTERM handler
+    #     signal.signal(signal.SIGTERM, self._origsigtermhandler)
+    #     # Send this process a SIGTERM signal
+    #     os.kill(os.getpid(), signal.SIGTERM)
+
+
+class SubprocessJob(Job):
+
+    @classmethod
+    def getJobType(cls):
+        return "Shell Command"
+
+    @classmethod
+    def getJobDescription(cls, cmd, environ=None):
+        return cmd if isinstance(cmd, basestring) else ' '.join(cmd)
+
+    def _run(self, cmd, environ=None):
+        self.log.debug("Running Job %s %s", self.getJobType(), self.name)
+        if environ is not None:
+            newenviron = os.environ.copy()
+            newenviron.update(environ)
+            environ = newenviron
+        process = None
+        exitcode = None
+        output = ''
+        handler = self.log.handlers[0]
+        originalFormatter = handler.formatter
+        lineFormatter = logging.Formatter('%(message)s')
+        try:
+            self.log.info(
+                "Spawning subprocess: %s",
+                OldSubprocessJob.getJobDescription(cmd)
+            )
+            process = subprocess.Popen(
+                cmd, bufsize=1, env=environ,
+                stdout=subprocess.PIPE, stderr=subprocess.STDOUT
+            )
+
+            # Since process.stdout.readline() is a blocking call, it stops
+            # the injected exception from being raised until it unblocks.
+            # The LineReader object allows non-blocking readline()
+            # behavior to avoid delaying the injected exception.
+            reader = LineReader(process.stdout)
+            reader.start()
+            # Reset the log message formatter (restored later)
+            while exitcode is None:
+                line = reader.readline()
+                if line:
+                    try:
+                        handler.setFormatter(lineFormatter)
+                        self.log.info(line.strip())
+                        output += line.strip()
+                    finally:
+                        handler.setFormatter(originalFormatter)
+                else:
+                    exitcode = process.poll()
+                    time.sleep(0.1)
+        except JobAborted:
+            if process:
+                self.log.warn("Job aborted. Killing subprocess...")
+                process.kill()
+                process.wait()  # clean up the <defunct> process
+                self.log.info("Subprocess killed.")
+            raise
+        if exitcode != 0:
+            device = socket.getfqdn()
+            job_record = self.dmd.JobManager.getJob(self.request.id)
+            description = job_record.job_description
+            summary = 'Job "%s" finished with failure result.' % description
+            message = "exit code %s for %s; %s" % (
+                exitcode, OldSubprocessJob.getJobDescription(cmd), output
+            )
+
+            self.dmd.ZenEventManager.sendEvent({
+                'device': device,
+                'severity': Event.Error,
+                'component': 'zenjobs',
+                'eventClass': '/App/Job/Fail',
+                'message': message,
+                'summary': summary,
+            })
+
+            raise SubprocessJobFailed(exitcode)
+        return exitcode
 
 
 class JobAborted(ThreadInterrupt):
@@ -380,7 +660,7 @@ class OldJob(Task):
         os.kill(os.getpid(), signal.SIGTERM)
 
 
-class SubprocessJob(OldJob):
+class OldSubprocessJob(OldJob):
 
     @classmethod
     def getJobType(cls):
@@ -405,7 +685,7 @@ class SubprocessJob(OldJob):
         try:
             self.log.info(
                 "Spawning subprocess: %s",
-                SubprocessJob.getJobDescription(cmd)
+                OldSubprocessJob.getJobDescription(cmd)
             )
             process = subprocess.Popen(cmd, bufsize=1, env=environ,
                                        stdout=subprocess.PIPE,
@@ -443,7 +723,7 @@ class SubprocessJob(OldJob):
             description = job_record.job_description
             summary = 'Job "%s" finished with failure result.' % description
             message = "exit code %s for %s; %s" % (
-                exitcode, SubprocessJob.getJobDescription(cmd), output
+                exitcode, OldSubprocessJob.getJobDescription(cmd), output
             )
 
             self.dmd.ZenEventManager.sendEvent({

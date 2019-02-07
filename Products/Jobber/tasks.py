@@ -7,19 +7,37 @@
 #
 ##############################################################################
 
+from __future__ import absolute_import
+
+import logging
 import ZODB.config
 
 from AccessControl.SecurityManagement import (
     getSecurityManager, newSecurityManager, noSecurityManager
 )
 from celery import Task
+from celery.signals import before_task_publish
 from celery.worker.request import Request
-from celery.utils.log import get_task_logger
+# from celery.utils.log import get_task_logger
 from ZPublisher.HTTPRequest import HTTPRequest
 from ZPublisher.HTTPResponse import HTTPResponse
 from ZPublisher.BaseRequest import RequestContainer
 
 from Products.ZenUtils.Utils import getObjByPath
+
+
+@before_task_publish.connect
+def attach_userid(headers=None, **kwargs):
+    """Adds a 'userid' field to the task's headers.  The value of userid
+    is the ID of the user that sent the task.
+    """
+    # Note: this method is invoked on the client side.
+    userid = getSecurityManager().getUser().getId()
+    try:
+        headers["userid"] = userid
+    except TypeError as ex:
+        log = logging.getLogger("zen.zenjobs.tasks")
+        log.error("No headers for task?: %s", ex)
 
 
 class ZenRequest(Request):
@@ -33,12 +51,6 @@ class ZenTask(Task):
     abstract = True
     _db = None
 
-    def apply_async(self, *args, **kw):
-        # Note: this method is invoked on the client side.
-        userid = getSecurityManager().getUser().getId()
-        kw.setdefault("headers", {})["userid"] = userid
-        return super(ZenTask, self).apply_async(*args, **kw)
-
     @property
     def db(self):
         if self._db is None:
@@ -49,14 +61,14 @@ class ZenTask(Task):
         return self._db
 
     def __call__(self, *args, **kwargs):
-        log = get_task_logger("zentask")
-        log.error(
+        log = logging.getLogger("zen.zenjobs.tasks")
+        log.info(
             "request.userid: %s",
             self.request.userid
             if hasattr(self.request, "userid") else "<not found>"
         )
         try:
-            log.error("Setting up a dmd instance")
+            log.info("Setting up a dmd instance")
             connection = self.db.open()
             root = connection.root()
             self.app = getContext(root["Application"])
@@ -67,7 +79,7 @@ class ZenTask(Task):
         except Exception as ex:
             print ex
         finally:
-            log.error("cleaning up")
+            log.info("cleaning up")
             del self.dmd
             del self.dataroot
             del self.app

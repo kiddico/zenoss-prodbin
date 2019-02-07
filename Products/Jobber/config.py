@@ -20,4 +20,5 @@ worker_send_task_events = True
 task_send_sent_event = True
 
 # Log settings
-# worker_hijack_root_logger = False
+worker_hijack_root_logger = False
+worker_log_color = False
