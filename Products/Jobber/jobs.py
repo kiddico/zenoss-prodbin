@@ -40,6 +40,7 @@ from Products.ZenEvents import Event
 
 from .exceptions import NoSuchJobException, SubprocessJobFailed
 from .tasks import ZenTask
+from .utils import abstractclassmethod, abstractstaticmethod
 from .zenjobs import app
 
 _MARKER = object()
@@ -78,24 +79,6 @@ class AbstractJob(object):
     getJobDescription(cls, *args, **kw) -> String
 
 
-class abstractclassmethod(classmethod):
-
-    __isabstractmethod__ = True
-
-    def __init__(cls, method):
-        method.__isabstractmethod__ = True
-        super(abstractclassmethod, cls).__init__(method)
-
-
-class abstractstaticmethod(classmethod):
-
-    __isabstractmethod__ = True
-
-    def __init__(cls, method):
-        method.__isabstractmethod__ = True
-        super(abstractstaticmethod, cls).__init__(method)
-
-
 class Job(object):
     """Base class for jobs.
     """
@@ -110,15 +93,10 @@ class Job(object):
 
     @classmethod
     def getJobType(cls):
-        """
-        """
-        return cls.name
+        return cls.__name__
 
     @abstractclassmethod
     def getJobDescription(cls, *args, **kwargs):
-        """
-        This is expected to be overridden in subclasses for nice descriptions.
-        """
         raise NotImplementedError(
             "Abtract classmethod not implemented: %s.getJobDescription"
             % cls.__name__
@@ -140,13 +118,13 @@ class Job(object):
         # deprecated
         pass
 
-    # def _get_config(self, key, default=_MARKER):
-    #     opts = getattr(self.app, 'db_options', None)
-    #     sanitized_key = key.replace("-", "_")
-    #     value = getattr(opts, sanitized_key, _MARKER)
-    #     if value is _MARKER:
-    #         raise ValueError("Config option %s is not defined" % key)
-    #     return value
+    def _get_config(self, key, default=_MARKER):
+        opts = getattr(self.app, 'db_options', None)
+        sanitized_key = key.replace("-", "_")
+        value = getattr(opts, sanitized_key, _MARKER)
+        if value is _MARKER:
+            raise ValueError("Config option %s is not defined" % key)
+        return value
 
     # @property
     # def log(self):
