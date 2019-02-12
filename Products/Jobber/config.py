@@ -14,6 +14,7 @@ worker_max_tasks_per_child = 100
 
 # Task settings
 task_acks_late = True
+task_ignore_result = True
 
 # Event settings
 worker_send_task_events = True

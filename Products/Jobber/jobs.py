@@ -21,8 +21,11 @@ import sys
 import time
 
 from datetime import datetime
+from celery import Task
+from celery.signals import before_task_publish, after_task_publish
 
 import transaction
+from AccessControl.SecurityManagement import getSecurityManager
 from AccessControl.SecurityManagement import (
     newSecurityManager, noSecurityManager
 )
@@ -30,85 +33,91 @@ from celery.utils.log import get_task_logger
 from Products.CMFCore.utils import getToolByName
 from ZODB.transact import transact
 
+from Products.ZenEvents import Event
 from Products.ZenUtils.Utils import (
     InterruptableThread, ThreadInterrupt, LineReader
 )
-from Products.ZenUtils.celeryintegration import (
-    current_app, Task, states
-)
-from Products.ZenEvents import Event
+from Products.ZenUtils.GlobalConfig import getGlobalConfiguration
 
 from .exceptions import NoSuchJobException, SubprocessJobFailed
-from .tasks import ZenTask
-from .utils import abstractclassmethod, abstractstaticmethod
+from .utils import abstractclassmethod
 from .zenjobs import app
 
 _MARKER = object()
 
 
-@app.task(bind=True, base=ZenTask)
-def job(self, *args, **kw):
-    deviceNames = [
-        device.id for device in self.dmd.Devices.Server.Linux.devices()
-    ]
-    # attrs = ", ".join(dir(self))
-    log = logging.getLogger("zen.zenjobs.job")
-    log.info("device names: %s", deviceNames)
-    return deviceNames
+# class AbstractJob(object):
+#
+#     __init__(self, *args, **kw)
+#
+#     dmd : (zodb) /zport/dmd
+#     log : logging.Logger
+#     request : celery.Request
+#
+#     _get_config(option_name : String) -> String
+#
+#     _run(*args, **kw) -> None
+#
+#     @classmethod
+#     makeSubJob(args=None, kwargs=None, description=None)
+#
+#     @classmethod
+#     getJobType(cls) -> String
+#
+#     @classmethod
+#     getJobDescription(cls, *args, **kw) -> String
 
 
-class AbstractJob(object):
-
-    __init__(self, *args, **kw)
-
-    dmd : (zodb) /zport/dmd
-    log : logging.Logger
-    request : celery.Request
-
-    _get_config(option_name : String) -> String
-
-    _run(*args, **kw) -> None
-
-    @classmethod
-    makeSubJob(args=None, kwargs=None, description=None)
-
-    @classmethod
-    getJobType(cls) -> String
-
-    @classmethod
-    getJobDescription(cls, *args, **kw) -> String
-
-
-class Job(object):
+class Job(Task):
     """Base class for jobs.
     """
 
-    __metaclass__ = abc.ABCMeta
+    # __metaclass__ = abc.ABCMeta
 
-    def __init__(self, *args, **kwargs):
-        self.log = kwargs.pop("log")
-        self.dmd = kwargs.pop("dmd")
-        self.request = kwargs.pop("request")
-        super(Job, self).__init__(*args, **kwargs)
+    # def __init__(self, *args, **kwargs):
+    #     """Initializes a Job instance.
 
-    @classmethod
-    def getJobType(cls):
-        return cls.__name__
+    #     @param log {Logger} The task logger
+    #     @param dmd {/zport/dmd} ZODB
+    #     @param request {celery.Request} The Celery request
+    #     @param options {dict} Config options
+    #     """
+    #     self.log = kwargs.pop("log")
+    #     self.dmd = kwargs.pop("dmd")
+    #     self.request = kwargs.pop("request")
+    #     self.__opts = kwargs.pop("options")
+    #     super(Job, self).__init__(*args, **kwargs)
 
-    @abstractclassmethod
+    def __init__(self):
+        self.name = self.__class__.__name__
+        super(Job, self).__init__()
+
+    # @abstractclassmethod
     def getJobDescription(cls, *args, **kwargs):
         raise NotImplementedError(
             "Abtract classmethod not implemented: %s.getJobDescription"
             % cls.__name__
         )
 
+    # @abc.abstractmethod
+    def _run(self, *args, **kw):
+        """Subclasses override this method to implement the work of the job.
+        """
+        raise NotImplementedError(
+            "Abtract method not implemented: %s._run"
+            % self.__class__.__name__
+        )
+
+    @classmethod
+    def getJobType(cls):
+        return cls.__name__
+
     @classmethod
     def makeSubJob(cls, args=None, kwargs=None, description=None, **options):
-        """
-        Return a SubJob instance that wraps the given job and its arguments
+        """Return a SubJob instance that wraps the given job and its arguments
         and options.
         """
-        job = current_app.tasks[cls.name]
+        job = app.tasks[cls.name]
         return SubJob(
             job, args=args, kwargs=kwargs,
             description=description, options=options
@@ -119,123 +128,62 @@ class Job(object):
         pass
 
     def _get_config(self, key, default=_MARKER):
-        opts = getattr(self.app, 'db_options', None)
         sanitized_key = key.replace("-", "_")
-        value = getattr(opts, sanitized_key, _MARKER)
+        value = getGlobalConfiguration().get(sanitized_key, _MARKER)
         if value is _MARKER:
             raise ValueError("Config option %s is not defined" % key)
         return value
-
-    # @property
-    # def log(self):
-    #     if self._log is None:
-    #         # Get log directory, ensure it exists
-    #         logdir = self._get_config('job-log-path')
-    #         try:
-    #             os.makedirs(logdir)
-    #         except OSError as e:
-    #             if e.errno != errno.EEXIST:
-    #                 raise
-    #         # Make the logfile path and store it in the backend for later
-    #         # retrieval
-    #         logfile = os.path.join(logdir, '%s.log' % self.request.id)
-    #         self.setProperties(logfile=logfile)
-    #         self._log = get_task_logger(self.request.id)
-    #         self._log.setLevel(self._get_config('logseverity'))
-    #         handler = logging.FileHandler(logfile)
-    #         handler.setFormatter(logging.Formatter(
-    #             "%(asctime)s %(levelname)s zen.Job: %(message)s"))
-    #         self._log.handlers = [handler]
-    #     return self._log
-
-    # @property
-    # def dmd(self):
-    #     """
-    #     Gets the dmd object from the backend
-    #     """
-    #     return self.app.backend.dmd
-
-    def _do_run(self, request, args=None, kwargs=None):
-        # This method runs a separate thread.
-        args = args or ()
-        kwargs = kwargs or {}
-        job_id = request.id
-        job_record = self.dmd.JobManager.getJob(job_id)
-        # Log in as the job's user
-        self.log.debug("Logging in as %s", job_record.user)
-        utool = getToolByName(self.dmd.getPhysicalRoot(), 'acl_users')
-        user = utool.getUserById(job_record.user)
-        if user is None:
-            user = self.dmd.zport.acl_users.getUserById(job_record.user)
-        user = user.__of__(utool)
-        newSecurityManager(None, user)
-
-        @transact
-        def _runjob():
-            result = self._run(*args, **kwargs)
-            if job_id in self._aborted_tasks:
-                raise JobAborted("Job %s aborted" % job_id)
-            return result
-
-        # Run it!
-        self.log.info("Starting job %s (%s)", job_id, self.name)
-        try:
-            # Make request available to self.request property
-            # (because self.request is thread local)
-            self.request_stack.push(request)
-            try:
-                result = _runjob()
-                self.log.info(
-                    "Job %s finished with result %s", job_id, result
-                )
-                self._result_queue.put(result)
-            except JobAborted:
-                self.log.warning("Job %s aborted.", job_id)
-                transaction.abort()
-                # re-raise JobAborted to allow celery to perform job
-                # failure and clean-up work.  A monkeypatch has been
-                # installed to prevent this exception from being written to
-                # the log.
-                raise
-        except Exception as e:
-            e.exc_info = sys.exc_info()
-            self._result_queue.put(e)
-        finally:
-            # Remove the request
-            self.request_stack.pop()
-            # Log out; probably unnecessary but can't hurt
-            noSecurityManager()
-            self._aborted_tasks.discard(job_id)
-            # release database connection acquired by the self.dmd
-            # reference ealier in this method.
-            self.backend.reset()
 
     def run(self, *args, **kwargs):
         job_id = self.request.id
         self.log.info("Job %s (%s) received", job_id, self.name)
         return self._run(*args, **kwargs)
 
-    # def on_failure(self, exc, task_id, args, kwargs, einfo):
-    #     # Because JobAborted is an exception, celery will change the state
-    #     # to FAILURE once the task completes. Since we want it to remain
-    #     # ABORTED, we'll set it back here.
-    #     if isinstance(exc, JobAborted):
-    #         self.update_state(state=states.ABORTED)
 
-    def _run(self, *args, **kwargs):
-        raise NotImplementedError("_run must be implemented")
+class DeviceListJob(Job):
 
-    # def _sigtermhandler(self, signum, frame):
-    #     self.log.debug("%s received signal %s", self, signum)
-    #     # Interrupt the runner_thread.
-    #     self._runner_thread.interrupt(JobAborted)
-    #     # Wait for the runner_thread to exit.
-    #     while self._runner_thread.is_alive():
-    #         time.sleep(0.01)
-    #     # Install the original SIGTERM handler
-    #     signal.signal(signal.SIGTERM, self._origsigtermhandler)
-    #     # Send this process a SIGTERM signal
-    #     os.kill(os.getpid(), signal.SIGTERM)
+    ignore_result = False
+
+    @classmethod
+    def getJobDescription(cls, *args, **kwargs):
+        return "some description"
+
+    def _run(self, *args, **kw):
+        deviceNames = [
+            device.id for device in self.dmd.Devices.Server.Linux.devices()
+        ]
+        # attrs = ", ".join(dir(self))
+        self.log.info("device names: %s", deviceNames)
+        return deviceNames
+
+
+DeviceListJob = app.register_task(DeviceListJob())
+
+
+@before_task_publish.connect
+def attach_userid(headers=None, **kwargs):
+    """Adds a 'userid' field to the task's headers.  The value of userid
+    is the ID of the user that sent the task.
+    """
+    log = logging.getLogger("zen.zenjobs.tasks")
+    log.info("before_task_publish: %s %s", headers, kwargs)
+    print("before_task_publish: %s %s" % (headers, kwargs))
+    # Note: this method is invoked on the client side.
+    # Note: 'headers' is never None, but it's desired to mark 'headers'
+    # as a keyword argument rather than a positional argument.
+    userid = getSecurityManager().getUser().getId()
+    try:
+        headers["userid"] = userid
+    except TypeError as ex:
+        log = logging.getLogger("zen.zenjobs.tasks")
+        log.error("No headers for task?: %s", ex)
+
+
+@after_task_publish.connect
+def after_publish(**kw):
+    log = logging.getLogger("zen.zenjobs.tasks")
+    log.info("after_task_publish: %s", kw)
+    print("after_task_publish: %s" % (kw,))
 
 
 class SubprocessJob(Job):
