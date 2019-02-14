@@ -72,7 +72,7 @@ class Job(Task):
     """Base class for jobs.
     """
 
-    # __metaclass__ = abc.ABCMeta
+    __metaclass__ = abc.ABCMeta
 
     # def __init__(self, *args, **kwargs):
     #     """Initializes a Job instance.
@@ -92,14 +92,14 @@ class Job(Task):
         self.name = self.__class__.__name__
         super(Job, self).__init__()
 
-    # @abstractclassmethod
+    @abstractclassmethod
     def getJobDescription(cls, *args, **kwargs):
         raise NotImplementedError(
             "Abtract classmethod not implemented: %s.getJobDescription"
             % cls.__name__
         )
 
-    # @abc.abstractmethod
+    @abc.abstractmethod
     def _run(self, *args, **kw):
         """Subclasses override this method to implement the work of the job.
         """

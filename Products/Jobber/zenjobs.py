@@ -12,6 +12,7 @@ from __future__ import absolute_import, print_function
 import errno
 import logging
 import logging.handlers
+import logging.config
 import os
 import sys
 
@@ -25,7 +26,8 @@ from celery.signals import (
     setup_logging,  # worker_init,
     worker_ready, worker_shutting_down, worker_shutdown,
     worker_process_init, worker_process_shutdown,
-    task_prerun, task_postrun
+    task_prerun, task_postrun,
+    task_success
 )
 from celery.utils.log import LoggingProxy
 from ZPublisher.HTTPRequest import HTTPRequest
@@ -35,20 +37,58 @@ from ZPublisher.BaseRequest import RequestContainer
 from Products.ZenUtils.Utils import getObjByPath
 
 from . import config
+from .logger import StyleAdapter
 
 app = Celery("zenjobs")
 app.config_from_object(config)
 
-# Signal (event) Firing order
-# ---------------------------
-# worker_init
-# setup_logging
-# worker_process_init
-# worker_ready
-# ...
-# worker_shutting_down
-# worker_process_shutdown
-# worker_shutdown
+
+class oswrap(object):
+
+    @property
+    def pid(self):
+        return os.getpid()
+
+
+osw = oswrap()
+
+# Signal Firing order (process) + handler(s)
+# ----------------------------------------
+#  1. worker_init (worker)
+#
+#  2. setup_logging (worker)
+#     + configure_logging
+#
+#  3. worker_process_init (worker process)
+#     + setup_zodb
+#
+#  4. worker_ready (worker)
+#
+# before_task_publish (client)
+#
+# after_task_publish (client)
+#
+#  5. task_prerun (worker process)
+#     + setup_zodb_session
+#     + setup_task_logger
+#
+#  6. task_retry (worker process)
+#  6. task_success (worker process)
+#  6. task_failure (worker process)
+#  6. task_revoked (worker process)
+#  6. task_unknown (worker process)
+#  6. task_rejected (worker process)
+#
+#  7. task_postrun (worker process)
+#     + teardown_zodb_session
+#     + teardown_task_logger
+#
+#  8. worker_shutting_down (worker)
+#
+#  9. worker_process_shutdown (worker process)
+#     + teardown_zodb
+#
+# 10. worker_shutdown (worker)
 
 
 # @worker_init.connect
@@ -58,36 +98,66 @@ app.config_from_object(config)
 
 @worker_ready.connect
 def after_startup(**kw):
-    log = logging.getLogger("zen.zenjobs")
-    log.info("worker_ready: %s", kw)
+    log = StyleAdapter(logging.getLogger("zen.zenjobs"))
+    log.info("[{0.pid}] worker_ready: {1}", osw, kw)
 
 
 @worker_shutting_down.connect
 def before_shutdown(**kw):
-    log = logging.getLogger("zen.zenjobs")
-    log.info("worker_shutting_down: %s", kw)
+    log = StyleAdapter(logging.getLogger("zen.zenjobs"))
+    log.info("[{0.pid}] worker_shutting_down: {1}", osw, kw)
 
 
 @worker_shutdown.connect
 def before_exit(**kw):
-    log = logging.getLogger("zen.zenjobs")
-    log.info("worker_shutdown: %s", kw)
+    log = StyleAdapter(logging.getLogger("zen.zenjobs"))
+    log.info("[{0.pid}] worker_shutdown: {1}", osw, kw)
 
 
 @worker_process_init.connect
-def process_startup(**kw):
-    log = logging.getLogger("zen.zenjobs")
-    log.info("worker_process_init: %s", kw)
+def setup_zodb(**kw):
+    log = StyleAdapter(logging.getLogger("zen.zenjobs"))
+    log.info("[{0.pid}] worker_process_init: {1}", osw, kw)
     log.info("worker_process_init: Initializing ZODB object")
     app.db = ZODB.config.databaseFromURL("file:///opt/zenoss/etc/zodb.conf")
 
 
 @worker_process_shutdown.connect
-def process_shutdown(**kw):
-    log = logging.getLogger("zen.zenjobs")
-    log.info("worker_process_shutdown: %s", kw)
+def teardown_zodb(**kw):
+    log = StyleAdapter(logging.getLogger("zen.zenjobs"))
+    log.info("[{0.pid}] worker_process_shutdown: {1}", osw, kw)
     log.info("worker_process_shutdown: Closing ZODB object")
     app.db.close()
+
+
+log_config = {
+    "version": 1,
+    "formatters": {
+        "default": {
+            "format": "%(asctime)s %(levelname)s %(name)s: %(message)s",
+            "datefmt": "%Y-%m-%d %H:%M:%S",
+        },
+    },
+    "handlers": {
+        "default": {
+            "formatter": "default",
+            "class": "logging.handlers.RotatingFileHandler",
+            "filename": "/opt/zenoss/log/zenjobs.log",
+            "maxBytes": 10240 * 1024,
+            "backupCount": 3,
+            "mode": "a",
+        },
+    },
+    "loggers": {
+        "zen": {
+            "level": logging.INFO,
+        },
+    },
+    "root": {
+        "level": logging.WARN,
+        "handlers": ["default"],
+    },
+}
 
 
 @setup_logging.connect
@@ -95,37 +165,24 @@ def configure_logging(**ignored):
     """
     Create formating for log entries and set default log level
     """
-    rootLog = logging.getLogger()
-    rootLog.setLevel(logging.WARN)
-    rootLog.handlers = []
+    logging.config.dictConfig(log_config)
 
-    zenLog = logging.getLogger('zen')
-    zenLog.setLevel(logging.INFO)
-
-    formatter = logging.Formatter(
-        "%(asctime)s %(levelname)s %(name)s: %(message)s"
-    )
-    handler = logging.handlers.RotatingFileHandler(
-        filename="/opt/zenoss/log/zenjobs.log",
-        maxBytes=10240 * 1024,
-        backupCount=3
-    )
-    handler.setFormatter(formatter)
-    rootLog.addHandler(handler)
-
+    zenLog = logging.getLogger("zen")
     logproxy = LoggingProxy(zenLog, logging.INFO)
     sys.__stdout__ = logproxy
 
-    zenLog.info("setup_logging: Logging configured")
+    StyleAdapter(zenLog).info(
+        "[{0.pid}] setup_logging: Logging configured", osw
+    )
 
 
 @task_prerun.connect
-def setup_zodb(task=None, **kwargs):
-    log = logging.getLogger("zen.zenjobs.tasks")
-    # log.info("task_prerun: %s %s", task, kwargs)
+def setup_zodb_session(task=None, **kwargs):
+    log = StyleAdapter(logging.getLogger("zen.zenjobs.tasks"))
+    log.info("[{0.pid}] task_prerun: {1} {2}", osw, task, kwargs)
     log.info("task_prerun: Setting up ZODB session")
     log.info(
-        "task_prerun: request.userid: %s",
+        "task_prerun: request.userid: {}",
         task.request.userid
         if hasattr(task.request, "userid") else "<not found>"
     )
@@ -138,15 +195,15 @@ def setup_zodb(task=None, **kwargs):
         login(task.dmd)
     except Exception as ex:
         log.exception(
-            "Failed to setup ZODB for task: (%s) %s", type(ex), ex
+            "Failed to setup ZODB for task: ({}) {}", type(ex), ex
         )
         raise
 
 
 @task_postrun.connect
-def teardown_zodb(task=None, **kwargs):
-    log = logging.getLogger("zen.zenjobs.tasks")
-    # log.info("task_postrun: %s %s", task, kwargs)
+def teardown_zodb_session(task=None, **kwargs):
+    log = StyleAdapter(logging.getLogger("zen.zenjobs.tasks"))
+    log.info("[{0.pid}] task_postrun: {1} {2}", osw, task, kwargs)
     log.info("task_postrun: Tearing down ZODB session")
     task.connection.close()
     del task.dmd
@@ -156,8 +213,8 @@ def teardown_zodb(task=None, **kwargs):
 
 @task_prerun.connect
 def setup_task_logger(task=None, **kwargs):
-    log = logging.getLogger("zen.zenjobs.tasks")
-    log.info("task_prerun: Setting up task logger")
+    log = StyleAdapter(logging.getLogger("zen.zenjobs.tasks"))
+    log.info("[{0.pid}] task_prerun: Setting up task logger", osw)
     # Get log directory, ensure it exists
     # logdir = self._get_config('job-log-path')
     logdir = "/opt/zenoss/log/jobs"
@@ -187,14 +244,20 @@ def setup_task_logger(task=None, **kwargs):
 
 @task_postrun.connect
 def teardown_task_logger(task=None, **kwargs):
-    log = logging.getLogger("zen.zenjobs.tasks")
-    log.info("task_postrun: Tearing down task logger")
+    log = StyleAdapter(logging.getLogger("zen.zenjobs.tasks"))
+    log.info("[{0.pid}] task_postrun: Tearing down task logger", osw)
     # logdir = "/opt/zenoss/log/jobs"
     # logfile = os.path.join(logdir, '%s.log' % task.request.id)
     joblog = logging.getLogger("zen.zenjobs.job")
     for handler in joblog.handlers:
         handler.close()
     joblog.handlers = []
+
+
+@task_success.connect
+def handle_success(*args, **kw):
+    log = StyleAdapter(logging.getLogger("zen.zenjobs.tasks"))
+    log.info("[{0.pid}] task_success: task succeeded {1} {2}", osw, args, kw)
 
 
 def getContext(app):
