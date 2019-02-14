@@ -68,29 +68,27 @@ _MARKER = object()
 #     getJobDescription(cls, *args, **kw) -> String
 
 
-class Job(Task):
+class Job(object):
     """Base class for jobs.
     """
 
     __metaclass__ = abc.ABCMeta
 
-    # def __init__(self, *args, **kwargs):
-    #     """Initializes a Job instance.
+    def __init__(self, *args, **kwargs):
+        """Initializes a Job instance.
 
-    #     @param log {Logger} The task logger
-    #     @param dmd {/zport/dmd} ZODB
-    #     @param request {celery.Request} The Celery request
-    #     @param options {dict} Config options
-    #     """
-    #     self.log = kwargs.pop("log")
-    #     self.dmd = kwargs.pop("dmd")
-    #     self.request = kwargs.pop("request")
-    #     self.__opts = kwargs.pop("options")
-    #     super(Job, self).__init__(*args, **kwargs)
+        @param log {Logger} The task logger
+        @param dmd {/zport/dmd} ZODB
+        @param request {celery.Request} The Celery request
+        """
+        self.log = kwargs.pop("log")
+        self.dmd = kwargs.pop("dmd")
+        self.request = kwargs.pop("request")
+        super(Job, self).__init__(*args, **kwargs)
 
-    def __init__(self):
-        self.name = self.__class__.__name__
-        super(Job, self).__init__()
+    # def __init__(self):
+    #     self.name = self.__class__.__name__
+    #     super(Job, self).__init__()
 
     @abstractclassmethod
     def getJobDescription(cls, *args, **kwargs):
@@ -123,6 +121,10 @@ class Job(Task):
             description=description, options=options
         )
 
+    @property
+    def name(self):
+        return type(self).__name__
+
     def setProperties(self, **properties):
         # deprecated
         pass
@@ -142,7 +144,7 @@ class Job(Task):
 
 class DeviceListJob(Job):
 
-    ignore_result = False
+    # ignore_result = False
 
     @classmethod
     def getJobDescription(cls, *args, **kwargs):
@@ -157,7 +159,7 @@ class DeviceListJob(Job):
         return deviceNames
 
 
-DeviceListJob = app.register_task(DeviceListJob())
+# DeviceListJob = app.register_task(DeviceListJob())
 
 
 @before_task_publish.connect

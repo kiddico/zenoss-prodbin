@@ -2,7 +2,7 @@
 broker_url = "amqp://zenoss:zenoss@localhost:5672//zenoss"
 
 # List of modules to import when the Celery worker starts
-imports = ("Products.Jobber.jobs",)
+imports = ("Products.Jobber.tasks",)
 
 # Using Redis to store task state and results
 result_backend = "redis://localhost/1"

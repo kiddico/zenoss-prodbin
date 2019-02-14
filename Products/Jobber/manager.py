@@ -28,6 +28,7 @@ from .exceptions import NoSuchJobException
 from .jobs import Job, PruneJob
 from .security import ZClassSecurityInfo
 from .zenjobs import app
+from .tasks import legacy_wrapper
 
 from logging import getLogger
 
@@ -36,21 +37,29 @@ log = getLogger("zen.JobManager")
 CATALOG_NAME = "job_catalog"
 
 
-def _dispatchTask(task, **kwargs):
+def _dispatchTask(signature):
     """Delay the actual scheduling of the job until the transaction manages
     to get itself committed. This prevents Celery from getting a new task
     for every retry in the event of ConflictErrors. See ZEN-2704.
     """
-    opts = dict(kwargs)
+    # args = args or ()
+    # kwargs = kwargs or {}
 
     # Have to use a closure because of Celery's funky signature inspection
     # and because of the status argument transaction passes
     def hook(status, **kw):
         log.debug("Commit hook status: %s args: %s", status, kw)
         if status:
-            log.info("Dispatching %s job to zenjobs", type(task))
+            # log.info("Dispatching %s job to zenjobs", job)
             # Push the task out to AMQP (ignore returned object).
-            task.s(**opts).apply_async()
+            # clspath = ".".join((job.__module__, job.__name__))
+            # s = legacy_wrapper().signature(
+            #     clspath, args=args, kwargs=kwargs
+            # )
+            # if task_id is not None:
+            #     s = s.set(task_id=task_id)
+            signature.apply_async()
+            # task.s(**opts).apply_async()
 
     transaction.get().addAfterCommitHook(hook)
 
@@ -160,10 +169,10 @@ class JobRecord(object):
 
 class JobManager(ZenModelRM):
 
-    security = ZClassSecurityInfo()
     meta_type = portal_type = "JobManager"
-    lastPruneJobAddTime = datetime.now()
-    lastPruneTime = lastPruneJobAddTime
+    # lastPruneJobAddTime = datetime.now()
+    # lastPruneTime = lastPruneJobAddTime
+    security = ZClassSecurityInfo()
 
     @security.protected(ZEN_MANAGE_DMD)
     def addJobChain(self, *joblist, **options):
@@ -227,19 +236,14 @@ class JobManager(ZenModelRM):
         # Create the task ID here (tell Celery to use this ID)
         job_id = str(uuid4())
 
-        # Retrieve the job instance
-        job = app.tasks[jobclass.name]
+        # Build the signature
+        clspath = ".".join((jobclass.__module__, jobclass.__name__))
+        s = legacy_wrapper.s(clspath, *args, **kwargs).set(task_id=job_id)
 
-        # Create a job record
-        jobrecord = self._savejobrecord(
-            job_id, job, description, args, kwargs, **properties
-        )
+        # Defer calling the signature until transaction has been committed
+        _dispatchTask(s)
 
-        # Dispatch job to zenjobs queue
-        job.s(**kwargs).apply_async()
-        # _dispatchTask(job, args=args, kwargs=kwargs, task_id=job_id)
-
-        return jobrecord
+        return job_id
 
     def _savejobrecord(self, job_id, job, desc, args, kwargs, **properties):
         # Put a pending job in the database. zenjobs will wait to run this
@@ -392,8 +396,7 @@ class JobManager(ZenModelRM):
             except ConflictError:
                 pass
 
-    security.declareProtected(ZEN_MANAGE_DMD, "clearJobs")
-
+    @security.protected(ZEN_MANAGE_DMD)
     def clearJobs(self):
         """
         Clear out all finished jobs.
@@ -401,8 +404,7 @@ class JobManager(ZenModelRM):
         for b in self.getCatalog()():
             self.deleteJob(b.getObject().getId())
 
-    security.declareProtected(ZEN_MANAGE_DMD, "killRunning")
-
+    @security.protected(ZEN_MANAGE_DMD)
     def killRunning(self):
         """
         Abort running jobs.
@@ -410,8 +412,7 @@ class JobManager(ZenModelRM):
         for job in self.getUnfinishedJobs():
             job.abort()
 
-    security.declareProtected(ZEN_MANAGE_DMD, "pruneOldJobs")
-
+    @security.protected(ZEN_MANAGE_DMD)
     def pruneOldJobs(self):
         if datetime.now() - self.lastPruneTime > timedelta(
             hours=1

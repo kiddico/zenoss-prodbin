@@ -18,9 +18,9 @@ import sys
 
 import ZODB.config
 
-from AccessControl.SecurityManagement import (
-    newSecurityManager, noSecurityManager
-)
+# from AccessControl.SecurityManagement import (
+#     newSecurityManager, noSecurityManager
+# )
 from celery import Celery
 from celery.signals import (
     setup_logging,  # worker_init,
@@ -30,11 +30,11 @@ from celery.signals import (
     task_success
 )
 from celery.utils.log import LoggingProxy
-from ZPublisher.HTTPRequest import HTTPRequest
-from ZPublisher.HTTPResponse import HTTPResponse
-from ZPublisher.BaseRequest import RequestContainer
+# from ZPublisher.HTTPRequest import HTTPRequest
+# from ZPublisher.HTTPResponse import HTTPResponse
+# from ZPublisher.BaseRequest import RequestContainer
 
-from Products.ZenUtils.Utils import getObjByPath
+# from Products.ZenUtils.Utils import getObjByPath
 
 from . import config
 from .logger import StyleAdapter
@@ -176,39 +176,39 @@ def configure_logging(**ignored):
     )
 
 
-@task_prerun.connect
-def setup_zodb_session(task=None, **kwargs):
-    log = StyleAdapter(logging.getLogger("zen.zenjobs.tasks"))
-    log.info("[{0.pid}] task_prerun: {1} {2}", osw, task, kwargs)
-    log.info("task_prerun: Setting up ZODB session")
-    log.info(
-        "task_prerun: request.userid: {}",
-        task.request.userid
-        if hasattr(task.request, "userid") else "<not found>"
-    )
-    try:
-        task.connection = app.db.open()
-        root = task.connection.root()
-        application = getContext(root["Application"])
-        dataroot = getObjByPath(application, "/zport/dmd")
-        task.dmd = dataroot
-        login(task.dmd)
-    except Exception as ex:
-        log.exception(
-            "Failed to setup ZODB for task: ({}) {}", type(ex), ex
-        )
-        raise
+# @task_prerun.connect
+# def setup_zodb_session(task=None, **kwargs):
+#     log = StyleAdapter(logging.getLogger("zen.zenjobs.tasks"))
+#     log.info("[{0.pid}] task_prerun: {1} {2}", osw, task, kwargs)
+#     log.info("task_prerun: Setting up ZODB session")
+#     log.info(
+#         "task_prerun: request.userid: {}",
+#         task.request.userid
+#         if hasattr(task.request, "userid") else "<not found>"
+#     )
+#     try:
+#         task.connection = app.db.open()
+#         root = task.connection.root()
+#         application = getContext(root["Application"])
+#         dataroot = getObjByPath(application, "/zport/dmd")
+#         task.dmd = dataroot
+#         login(task.dmd)
+#     except Exception as ex:
+#         log.exception(
+#             "Failed to setup ZODB for task: ({}) {}", type(ex), ex
+#         )
+#         raise
 
 
-@task_postrun.connect
-def teardown_zodb_session(task=None, **kwargs):
-    log = StyleAdapter(logging.getLogger("zen.zenjobs.tasks"))
-    log.info("[{0.pid}] task_postrun: {1} {2}", osw, task, kwargs)
-    log.info("task_postrun: Tearing down ZODB session")
-    task.connection.close()
-    del task.dmd
-    del task.connection
-    noSecurityManager()
+# @task_postrun.connect
+# def teardown_zodb_session(task=None, **kwargs):
+#     log = StyleAdapter(logging.getLogger("zen.zenjobs.tasks"))
+#     log.info("[{0.pid}] task_postrun: {1} {2}", osw, task, kwargs)
+#     log.info("task_postrun: Tearing down ZODB session")
+#     task.connection.close()
+#     del task.dmd
+#     del task.connection
+#     noSecurityManager()
 
 
 @task_prerun.connect
@@ -260,26 +260,26 @@ def handle_success(*args, **kw):
     log.info("[{0.pid}] task_success: task succeeded {1} {2}", osw, args, kw)
 
 
-def getContext(app):
-    resp = HTTPResponse(stdout=None)
-    env = {
-        'SERVER_NAME': 'localhost',
-        'SERVER_PORT': '8080',
-        'REQUEST_METHOD': 'GET'
-    }
-    req = HTTPRequest(None, env, resp)
-    return app.__of__(RequestContainer(REQUEST=req))
+# def getContext(app):
+#     resp = HTTPResponse(stdout=None)
+#     env = {
+#         'SERVER_NAME': 'localhost',
+#         'SERVER_PORT': '8080',
+#         'REQUEST_METHOD': 'GET'
+#     }
+#     req = HTTPRequest(None, env, resp)
+#     return app.__of__(RequestContainer(REQUEST=req))
 
 
-def login(context, name='admin', userfolder=None):
-    """Authenticate user and configure credentials.
-    """
-    if userfolder is None:
-        userfolder = context.getPhysicalRoot().acl_users
-    user = userfolder.getUserById(name)
-    if user is None:
-        return
-    if not hasattr(user, 'aq_base'):
-        user = user.__of__(userfolder)
-    newSecurityManager(None, user)
-    return user
+# def login(context, name='admin', userfolder=None):
+#     """Authenticate user and configure credentials.
+#     """
+#     if userfolder is None:
+#         userfolder = context.getPhysicalRoot().acl_users
+#     user = userfolder.getUserById(name)
+#     if user is None:
+#         return
+#     if not hasattr(user, 'aq_base'):
+#         user = user.__of__(userfolder)
+#     newSecurityManager(None, user)
+#     return user
