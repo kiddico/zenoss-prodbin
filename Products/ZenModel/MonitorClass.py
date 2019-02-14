@@ -113,7 +113,7 @@ class MonitorClass(ZenModelRM, Folder, TemplateContainer):
             import manage_addPerformanceConf
         perfServerObj = self.getDmdRoot("Monitors").Performance
         if not hasattr(perfServerObj, monitorName):
-            manage_addPerformanceConf(perfServerObj, monitorName)
+            raise AttributeError("collector '{}' does not exist".format(monitorName))
         return perfServerObj._getOb(monitorName)
 
     def getPerformanceMonitorNames(self):

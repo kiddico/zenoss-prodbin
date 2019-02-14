@@ -698,7 +698,11 @@ class DeviceFacade(TreeFacade):
                  )
         zProps.update(zProperties)
         model = model and "Auto" or "none"
-        perfConf = self._dmd.Monitors.getPerformanceMonitor(collector)
+        try:
+            perfConf = self._dmd.Monitors.getPerformanceMonitor(collector)
+        except AttributeError as e:
+            log.error(e)
+            return
         jobrecords = perfConf.addCreateDeviceJob(deviceName=deviceName,
                                                devicePath=deviceClass,
                                                performanceMonitor=collector,
