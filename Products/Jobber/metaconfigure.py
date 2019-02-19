@@ -7,10 +7,18 @@
 #
 ##############################################################################
 
-from celery.registry import tasks
+from __future__ import absolute_import, print_function
+
+from celery import signals
 
 
 def job(_context, class_, name=None):
-    if name is not None:
-        class_.name = name
-    tasks.register(class_)
+    pass
+
+
+def signal(_context, name, handler):
+    signal = getattr(signals, name, None)
+    if signal is None:
+        raise AttributeError("No such signal named '%s'" % name)
+    handler_fn = _context.resolve(handler)
+    signal.connect(handler_fn)

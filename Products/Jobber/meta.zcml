@@ -1,12 +1,23 @@
-<configure xmlns="http://namespaces.zope.org/meta">
+<configure xmlns:meta="http://namespaces.zope.org/meta">
 
-<directives namespace="http://namespaces.zope.org/zope">
+  <meta:directives namespace="http://namespaces.zope.org/zenjobs">
 
-    <directive
+    <meta:directive
+        name="signal"
+        schema=".metadirectives.IZenJobsSignal"
+        handler=".metaconfigure.signal"
+        />
+
+  </meta:directives>
+
+  <meta:directives namespace="http://namespaces.zope.org/zope">
+
+    <meta:directive
         name="job"
         schema=".metadirectives.IJob"
         handler=".metaconfigure.job"
         />
 
-</directives>
+  </meta:directives>
+
 </configure>
