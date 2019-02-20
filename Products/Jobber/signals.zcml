@@ -1,0 +1,49 @@
+<?xml version="1.0"?>
+<configure xmlns:zenjobs="http://namespaces.zope.org/zenjobs">
+
+	<zenjobs:signal
+		name="before_task_publish"
+		handler=".signals.attach_userid"
+		/>
+
+	<zenjobs:signal
+		name="after_task_publish"
+		handler=".signals.after_publish"
+		/>
+
+	<zenjobs:signal
+		name="worker_process_init"
+		handler=".signals.setup_zodb"
+		/>
+
+	<zenjobs:signal
+		name="worker_process_shutdown"
+		handler=".signals.teardown_zodb"
+		/>
+
+	<!--zenjobs:signal
+		name="setup_logging"
+		handler=".signals.configure_logging"
+		/-->
+
+	<zenjobs:signal
+		name="after_setup_logger"
+		handler=".logger.config_logger"
+		/>
+
+	<zenjobs:signal
+		name="after_setup_task_logger"
+		handler=".logger.config_task_logger"
+		/>
+
+	<zenjobs:signal
+		name="task_prerun"
+		handler=".logger.setup_task_logger"
+		/>
+
+	<zenjobs:signal
+		name="task_postrun"
+		handler=".logger.teardown_task_logger"
+		/>
+
+</configure>

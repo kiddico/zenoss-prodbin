@@ -8,6 +8,7 @@
 ##############################################################################
 
 from AccessControl import ClassSecurityInfo
+from AccessControl.class_init import InitializeClass
 
 
 class ZClassSecurityInfo(object):
@@ -27,3 +28,7 @@ class ZClassSecurityInfo(object):
 
     def __getattr__(self, name):
         return getattr(self.__csi, name)
+
+
+def initialize_class(cls):
+    InitializeClass(cls)

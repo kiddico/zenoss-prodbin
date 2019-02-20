@@ -7,7 +7,7 @@
 #
 ##############################################################################
 
-from __future__ import unicode_literals
+from __future__ import unicode_literals, absolute_import
 
 from zope.interface import Interface
 from zope.configuration.fields import GlobalObject

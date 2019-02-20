@@ -44,7 +44,7 @@ from .zenjobs import app
 
 
 @app.task(bind=True, base=requires(DMD), ignore_result=False)
-def legacy_wrapper(self, jobclasspath, *args, **kwargs):
+def legacy_job(self, jobclasspath, *args, **kwargs):
     """This task executes legacy Job based tasks.
     """
     moduleName, clsName = jobclasspath.rsplit(".", 1)

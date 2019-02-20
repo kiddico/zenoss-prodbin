@@ -1,68 +1,18 @@
 <?xml version="1.0"?>
 <configure
-    xmlns="http://namespaces.zope.org/zope"
-    xmlns:five="http://namespaces.zope.org/five"
-    xmlns:browser="http://namespaces.zope.org/browser"
-    xmlns:zenjobs="http://namespaces.zope.org/zenjobs"
-    i18n_domain="Products.Jobber">
+   xmlns="http://namespaces.zope.org/zope"
+   xmlns:browser="http://namespaces.zope.org/browser"
+   >
 
-    <include package="Products.ZenModel" file="permissions.zcml"/>
+   <include package="Products.ZenModel" file="permissions.zcml"/>
 
-    <browser:page
-        class=".manager.JobLogDownload"
-        name="joblog"
-        for="*"
-        permission="zenoss.Common"
-        />
+   <browser:page
+      class=".manager.JobLogDownload"
+      name="joblog"
+      for="*"
+      permission="zenoss.Common"
+      />
 
-	<zenjobs:signal
-		name="before_task_publish"
-		handler=".signals.attach_userid"
-		/>
-
-	<zenjobs:signal
-		name="after_task_publish"
-		handler=".signals.after_publish"
-		/>
-
-	<zenjobs:signal
-		name="after_task_publish"
-		handler=".signals.after_publish"
-		/>
-
-	<zenjobs:signal
-		name="worker_process_init"
-		handler=".signals.setup_zodb"
-		/>
-
-	<zenjobs:signal
-		name="worker_process_shutdown"
-		handler=".signals.teardown_zodb"
-		/>
-
-	<!--zenjobs:signal
-		name="setup_logging"
-		handler=".signals.configure_logging"
-		/-->
-
-	<zenjobs:signal
-		name="after_setup_logger"
-		handler=".signals.config_logger"
-		/>
-
-	<zenjobs:signal
-		name="after_setup_task_logger"
-		handler=".signals.config_task_logger"
-		/>
-
-	<zenjobs:signal
-		name="task_prerun"
-		handler=".signals.setup_task_logger"
-		/>
-
-	<zenjobs:signal
-		name="task_postrun"
-		handler=".signals.teardown_task_logger"
-		/>
+   <include package="." file="signals.zcml"/>
 
 </configure>

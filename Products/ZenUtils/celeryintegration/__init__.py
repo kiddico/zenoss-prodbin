@@ -14,12 +14,12 @@ environment has been set up first.
 
 # NOTE: the order of statements in this module is important.
 
-# LOADER_FQCN = "Products.ZenUtils.celeryintegration.ZenossLoader"
-
-import os
 # Set the 'loader' class the default celery app will use.  This setting
 # must be made at this point before any other celery-related import.
-# os.environ.setdefault("CELERY_LOADER", LOADER_FQCN)
+# import os
+# os.environ.setdefault(
+#     "CELERY_LOADER", "Products.ZenUtils.celeryintegration.ZenossLoader"
+# )
 
 from celery import current_app, states, chain
 from celery.utils.log import get_task_logger
@@ -46,5 +46,10 @@ def _patchstate():
             frozenset(set((ABORTED,)) | getattr(states, attr))
         )
     setattr(states, 'ABORTED', ABORTED)
+
+
 _patchstate()
 del _patchstate
+
+
+__all__ = ("current_app", "states", "chain", "get_task_logger", "Task")

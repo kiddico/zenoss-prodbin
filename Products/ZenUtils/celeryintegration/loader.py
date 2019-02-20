@@ -1,10 +1,10 @@
 ##############################################################################
-# 
+#
 # Copyright (C) Zenoss, Inc. 2012, all rights reserved.
-# 
+#
 # This content is made available according to terms specified in
 # License.zenoss under the directory where your Zenoss product is installed.
-# 
+#
 ##############################################################################
 
 
@@ -85,8 +85,10 @@ class ZenossLoader(BaseLoader):
             # Handle logging ourselves
             constants.USE_CELERY_LOGGING: False,
             # Log file formats
-            constants.LOG_FORMAT: "%(asctime)s %(levelname)s %(name)s: %(message)s",
-            constants.TASK_LOG_FORMAT: "%(asctime)s %(levelname)s zen.Job: %(message)s",
+            constants.LOG_FORMAT:
+                "%(asctime)s %(levelname)s %(name)s: %(message)s",
+            constants.TASK_LOG_FORMAT:
+                "%(asctime)s %(levelname)s zen.Job: %(message)s",
             # Level at which stdout should be logged
             constants.STDOUT_LOG_LEVEL: 'INFO'
         }

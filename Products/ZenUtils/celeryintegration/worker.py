@@ -7,9 +7,9 @@
 #
 ##############################################################################
 
-
 from celery.apps.worker import Worker
 import signal
+
 
 class CeleryZenWorker(Worker):
     """
