@@ -22,7 +22,8 @@ from ZPublisher.BaseRequest import RequestContainer
 from Products.ZenUtils.Utils import getObjByPath
 
 from .logger import FormatStringAdapter
-from .zenjobs import app, osw
+from .utils import osw
+from .zenjobs import app
 
 
 def requires(*features):

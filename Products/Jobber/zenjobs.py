@@ -7,9 +7,7 @@
 #
 ##############################################################################
 
-from __future__ import absolute_import, print_function
-
-import os
+from __future__ import absolute_import
 
 from celery import Celery
 
@@ -17,13 +15,3 @@ from . import config
 
 app = Celery("zenjobs")
 app.config_from_object(config)
-
-
-class oswrap(object):
-
-    @property
-    def pid(self):
-        return os.getpid()
-
-
-osw = oswrap()

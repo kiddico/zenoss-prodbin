@@ -19,7 +19,7 @@ import sys
 from celery.utils.log import LoggingProxy, get_task_logger
 from Products.ZenUtils.Utils import zenPath
 
-from .zenjobs import osw
+from .utils import osw
 
 # This implementation is based on the StyleAdapter example given in
 # https://docs.python.org/3/howto/logging-cookbook.html

@@ -29,7 +29,7 @@ from Products.ZenModel.ZenossSecurity import ZEN_MANAGE_DMD
 from .exceptions import NoSuchJobException
 from .jobs import PruneJob
 from .tasks import legacy_job
-from .zope import ZClassSecurityInfo, initialize_class
+from .utils import ZClassSecurityInfo, initialize_class
 from .record import JobRecord
 
 log = getLogger("zen.JobManager")

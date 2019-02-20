@@ -17,7 +17,8 @@ from AccessControl.SecurityManagement import getSecurityManager
 from celery.utils.log import get_task_logger
 
 from .logger import FormatStringAdapter
-from .zenjobs import app, osw
+from .utils import osw
+from .zenjobs import app
 
 # Signal Firing order (process) + handler(s)
 # ----------------------------------------
