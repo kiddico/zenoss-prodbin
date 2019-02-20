@@ -13,6 +13,6 @@
       permission="zenoss.Common"
       />
 
-   <include package="." file="signals.zcml"/>
+   <include file="signals.zcml"/>
 
 </configure>

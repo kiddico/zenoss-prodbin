@@ -10,10 +10,12 @@
 import os
 
 from AccessControl import ClassSecurityInfo
-from AccessControl.class_init import InitializeClass
+from AccessControl.class_init import InitializeClass as initClass
 
 
 class ZClassSecurityInfo(object):
+    """Use AccessControl.ClassSecurityInfo as a function decorator.
+    """
 
     def __init__(self):
         self.__csi = ClassSecurityInfo()
@@ -32,11 +34,16 @@ class ZClassSecurityInfo(object):
         return getattr(self.__csi, name)
 
 
-def initialize_class(cls):
-    InitializeClass(cls)
+def ZInitializeClass(cls):
+    """Use AccessControl.class_init.InitializeClass as a class decorator.
+    """
+    initClass(cls)
+    return cls
 
 
 class abstractclassmethod(classmethod):
+    """Decorator to specify an abstract classmethod.
+    """
 
     __isabstractmethod__ = True
 
@@ -46,6 +53,8 @@ class abstractclassmethod(classmethod):
 
 
 class abstractstaticmethod(classmethod):
+    """Decorator to specify an abstract staticmethod.
+    """
 
     __isabstractmethod__ = True
 
@@ -55,6 +64,18 @@ class abstractstaticmethod(classmethod):
 
 
 class oswrap(object):
+    """Wraps the os module to expose various 'get' functions as properties.
+
+    The use case for this class is format strings, e.g. rather than writing
+
+        "The pid is {}".format(os.getpid())
+
+    instead, write this:
+
+        "This pid is {0.pid}".format(osw)
+
+    This defers calling the function until the string is evaluated.
+    """
 
     @property
     def pid(self):

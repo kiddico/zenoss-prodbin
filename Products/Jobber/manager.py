@@ -29,8 +29,7 @@ from Products.ZenModel.ZenossSecurity import ZEN_MANAGE_DMD
 from .exceptions import NoSuchJobException
 from .jobs import PruneJob
 from .tasks import legacy_job
-from .utils import ZClassSecurityInfo, initialize_class
-from .record import JobRecord
+from .utils import ZClassSecurityInfo, ZInitializeClass
 
 log = getLogger("zen.JobManager")
 
@@ -43,7 +42,7 @@ def manage_addJobManager(context, id="JobManager"):
     return getattr(context, id)
 
 
-@initialize_class
+@ZInitializeClass
 class JobManager(ZenModelRM):
 
     meta_type = portal_type = "JobManager"
