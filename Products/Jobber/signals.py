@@ -9,13 +9,17 @@
 
 from __future__ import absolute_import, print_function
 
+import importlib
+import json
 import logging
 import redis
+import time
 import ZODB.config
 
 from AccessControl.SecurityManagement import getSecurityManager
 from celery.utils.log import get_task_logger
 
+from . import states
 from .logger import FormatStringAdapter
 from .utils import osw
 from .zenjobs import app
@@ -63,8 +67,37 @@ def record_job(body=None, headers=None, properties=None, **kwargs):
     """
     """
     attach_userid(headers=headers)
-    # client = redis.Redis(host="localhost", db=1)
+
+    record = {
+        "user": headers.get("userid"),
+        "name": None,
+        "type": None,
+        "description": None,
+        "status": states.PENDING,
+        "schedule": None,
+        "started": None,
+        "done": None,
+        "result": None,
+    }
+    taskname = headers.get("task")
+    if taskname == "Products.Jobber.tasks.legacy_job":
+        jobcls = body[0]
+        jobcls = jobcls[0] if jobcls else None
+        if jobcls:
+            moduleName, clsName = jobcls.rsplit(".", 1)
+            module = importlib.import_module(moduleName)
+            cls = getattr(module, clsName)
+            record["name"] = clsName
+            record["type"] = cls.getJobType()
+            record["description"] = cls.getJobDescription(
+                *body[1].get("args", ()), **body[1].get("kwargs", {})
+            )
+    record["scheduled"] = int(time.time() * 1000)
+
+    client = redis.Redis(host="localhost", db=1)
     key = "zenjobs:job:%s" % headers.get("id")
+    client.set(key, json.dumps(record))
+
     # log = get_task_logger(__name__)
     print("%s: body -> %s" % (key, body))
     print("%s: headers -> %s" % (key, headers))
