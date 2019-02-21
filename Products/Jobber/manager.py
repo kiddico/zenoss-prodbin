@@ -112,7 +112,7 @@ class JobManager(ZenModelRM):
         # Create the task ID here (tell Celery to use this ID)
         job_id = str(uuid4())
 
-        # Build the task's signature (i.e. call signature)
+        # Build the task's signature (i.e. it's call signature)
         clspath = ".".join((jobclass.__module__, jobclass.__name__))
         s = legacy_job.s(
             clspath, *args, **kwargs
@@ -282,7 +282,12 @@ class _SendTask(object):
     def __call__(self, status, **kw):
         log.debug("Commit hook status: %s args: %s", status, kw)
         if status:
+            # Create a job record
+            self._savejobrecord()
             self.__s.apply_async()
+
+    def _savejobrecord(self):
+        pass
 
 
 class JobLogDownload(BrowserView):

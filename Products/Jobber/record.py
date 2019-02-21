@@ -16,37 +16,34 @@ from datetime import datetime
 from AccessControl import getSecurityManager
 from celery import states
 
+from .exceptions import NoSuchJobException
 from .jobs import Job
 from .zenjobs import app
 
 log = logging.getLogger("zen.JobManager")
 
 
+def _getAsyncResult(task, task_id):
+    if not isinstance(task, (str, unicode)):
+        task = ".".join(task.__module__, task.__name__)
+    instance = app.tasks.get(task)
+    if instance is None:
+        raise NoSuchJobException("%s not found" % task)
+    return
+
+
 class JobRecord(object):
 
-    __slots__ = (
-        "task_id",
-        "user",
-        "job_name",
-        "job_type",
-        "job_description",
-        "status",
-        "date_schedule",
-        "date_started",
-        "date_done",
-        "result",
-    )
-
     def __init__(self):
-        self.user = None
-        self.job_name = None
-        self.job_type = None
-        self.job_description = None
-        self.status = states.PENDING
-        self.date_schedule = None
-        self.date_started = None
-        self.date_done = None
-        self.result = None
+        self.__user = None
+        self.__name = None
+        self.__type = None
+        self.__description = None
+        self.__status = states.PENDING
+        self.__schedule = None
+        self.__started = None
+        self.__done = None
+        self.__result = None
 
     @property
     def _async_result(self):

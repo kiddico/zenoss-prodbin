@@ -10,37 +10,28 @@
 from __future__ import absolute_import
 
 import importlib
+import json
 import logging
+import redis
+import time
 
-# from AccessControl.SecurityManagement import getSecurityManager
-# from celery.signals import before_task_publish, after_task_publish
+from Products.ZenUtils.Utils import InterruptableThread
 
+from . import states
+from .exceptions import JobAborted
 from .feature import requires, DMD
 from .zenjobs import app
 
 
-# @before_task_publish.connect
-# def attach_userid(headers=None, **kwargs):
-#     """Adds a 'userid' field to the task's headers.  The value of userid
-#     is the ID of the user that sent the task.
-#     """
-#     log = logging.getLogger("zen.zenjobs")
-#     log.info("before_task_publish: %s %s", headers, kwargs)
-#     # Note: this method is invoked on the client side.
-#     # Note: 'headers' is never None, but it's desired to mark 'headers'
-#     # as a keyword argument rather than a positional argument.
-#     userid = getSecurityManager().getUser().getId()
-#     try:
-#         headers["userid"] = userid
-#     except TypeError as ex:
-#         log = logging.getLogger("zen.zenjobs.tasks")
-#         log.error("No headers for task?: %s", ex)
-
-
-# @after_task_publish.connect
-# def after_publish(**kw):
-#     log = logging.getLogger("zen.zenjobs")
-#     log.info("after_task_publish: %s", kw)
+@app.task(bind=True, ignore_result=False)
+def job(self, *args, **kw):
+    deviceNames = [
+        device.id for device in self.dmd.Devices.Server.Linux.devices()
+    ]
+    # attrs = ", ".join(dir(self))
+    log = logging.getLogger("zen.zenjobs.job")
+    log.info("device names: %s", deviceNames)
+    return deviceNames
 
 
 @app.task(bind=True, base=requires(DMD), ignore_result=False)
@@ -56,12 +47,95 @@ def legacy_job(self, jobclasspath, *args, **kwargs):
     return result
 
 
-@app.task(bind=True, ignore_result=False)
-def job(self, *args, **kw):
-    deviceNames = [
-        device.id for device in self.dmd.Devices.Server.Linux.devices()
-    ]
-    # attrs = ", ".join(dir(self))
-    log = logging.getLogger("zen.zenjobs.job")
-    log.info("device names: %s", deviceNames)
-    return deviceNames
+@app.task(bind=True)
+def abortable_job(self, jobclasspath, *args, **kwargs):
+    """This task executes legacy abortable Job based tasks.
+    """
+    moduleName, clsName = jobclasspath.rsplit(".", 1)
+    module = importlib.import_module(moduleName)
+    cls = getattr(module, clsName)
+    job = cls(log=self.log, dmd=self.dmd, request=self.request)
+
+    try:
+        rc = redis.Redis(host="localhost", db=1)
+        rc.ping()
+        runner = _JobRunner(job, args=args, kwargs=kwargs)
+        aborter = _JobAborter(self.request.id, rc, runner)
+        aborter.start()
+        runner.start()
+
+        while runner.is_alive():
+            time.sleep(0.1)
+        runner.join()
+        if aborter.is_alive():
+            aborter.kill()
+        aborter.join()
+    finally:
+        rc.shutdown()
+
+
+class _JobAborter(InterruptableThread):
+
+    def __init__(self, jobid, client, runner):
+        """
+        """
+        self.__jobid = jobid
+        self.__client = client
+        self.__runner = runner
+        super(_JobAborter, self).__init__(name="JobAborter")
+
+    def run(self):
+        while True:
+            try:
+                raw = self.__client.get("zenjobs:job:%s" % self.__jobid)
+                if raw is None:
+                    continue
+                record = json.loads(raw)
+                status = record.get("status")
+            except Exception:
+                status = states.ABORTED
+            if status == states.ABORTED:
+                self.__runner.interrupt(JobAborted)
+                break
+            time.sleep(0.1)
+
+
+class _JobRunner(InterruptableThread):
+
+    def __init__(self, job, request, args=None, kwargs=None):
+        self.__job = job
+        self.__request = request
+        self.__args = args
+        self.__kwargs = kwargs
+        super(_JobRunner, self).__init__(name="JobRunner")
+
+    def run(self):
+        args = self.__args or ()
+        kwargs = self.__kwargs or {}
+        job_id = self.__request.id
+
+        # Run it!
+        self.log.info("Starting job %s (%s)", job_id, self.__job.name)
+        try:
+            # Make request available to self.request property
+            # (because self.request is thread local)
+            # self.__job.request_stack.push(request)
+            try:
+                result = self._run(*args, **kwargs)
+                self.log.info(
+                    "Job %s finished with result %s", job_id, result
+                )
+                self._result_queue.put(result)
+            except JobAborted:
+                self.log.warning("Job %s aborted.", job_id)
+                # re-raise JobAborted to allow celery to perform job
+                # failure and clean-up work.  A monkeypatch has been
+                # installed to prevent this exception from being written to
+                # the log.
+                raise
+        except Exception as e:
+            e.exc_info = sys.exc_info()
+            self._result_queue.put(e)
+        # finally:
+            # Remove the request
+            # self.request_stack.pop()

@@ -1,9 +1,14 @@
 <?xml version="1.0"?>
 <configure xmlns:zenjobs="http://namespaces.zope.org/zenjobs">
 
-	<zenjobs:signal
+	<!--zenjobs:signal
 		name="before_task_publish"
 		handler=".signals.attach_userid"
+		/-->
+
+	<zenjobs:signal
+		name="before_task_publish"
+		handler=".signals.record_job"
 		/>
 
 	<zenjobs:signal

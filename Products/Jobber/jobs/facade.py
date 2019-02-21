@@ -18,8 +18,8 @@ from zope.dottedname.resolve import resolve
 
 from Products.ZenUtils.celeryintegration import get_task_logger
 
-from .jobs import Job
-from .exceptions import FacadeMethodJobFailed
+from ..exceptions import FacadeMethodJobFailed
+from .job import Job
 
 
 class FacadeMethodJob(Job):

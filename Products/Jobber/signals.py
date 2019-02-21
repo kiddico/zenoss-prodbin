@@ -10,7 +10,7 @@
 from __future__ import absolute_import, print_function
 
 import logging
-
+import redis
 import ZODB.config
 
 from AccessControl.SecurityManagement import getSecurityManager
@@ -57,6 +57,18 @@ from .zenjobs import app
 #     + teardown_zodb
 #
 # 10. worker_shutdown (worker)
+
+
+def record_job(body=None, headers=None, properties=None, **kwargs):
+    """
+    """
+    attach_userid(headers=headers)
+    # client = redis.Redis(host="localhost", db=1)
+    key = "zenjobs:job:%s" % headers.get("id")
+    # log = get_task_logger(__name__)
+    print("%s: body -> %s" % (key, body))
+    print("%s: headers -> %s" % (key, headers))
+    print("%s: properties -> %s" % (key, properties))
 
 
 def attach_userid(headers=None, **kwargs):
