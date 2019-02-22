@@ -45,30 +45,22 @@ class Abortable(Job):
     acks_late = True
     _origsigtermhandler = None
 
-
     def run(self, *args, **kwargs):
         job_id = self.request.id
         self.log.info("Job %s (%s) received", job_id, self.name)
 
-        self._aborter_thread = InterruptableThread(
-                target=self._check_aborted, args=(job_id,)
-            )
-        # Forward the request to the thread because the self.request
-        # property is a thread-local value.
-        self._runner_thread = InterruptableThread(
-                target=self._do_run, args=(self.request,),
-                kwargs={'args': args, 'kwargs': kwargs}
-            )
-
         try:
+            executor = _ExecutorThread(self, args=args, kwargs=kwargs)
+            aborter = _CheckAbortThread(job_id, self.backend, executor)
+
             # Install a SIGTERM handler so that the 'runner_thread' can be
             # interrupted/aborted when the TERM signal is received.
-            self._origsigtermhandler = signal.signal(
-                    signal.SIGTERM, self._sigtermhandler
-                )
+            original_handler = signal.signal(
+                signal.SIGTERM, self._sigtermhandler
+            )
 
-            self._runner_thread.start()
-            self._aborter_thread.start()
+            executor.start()
+            aborter.start()
 
             # A blocking join() call also blocks the thread from calling
             # signal handlers, so use a timeout join and loop until the
@@ -165,15 +157,13 @@ class _CheckAbortThread(Thread):
             time.sleep(0.25)
 
 
-class _WorkerThread(InterruptableThread):
+class _ExecutorThread(InterruptableThread):
 
-    def __init__(self, job, request, args=None, kwargs=None):
+    def __init__(self, job, args=None, kwargs=None):
         self.__job = job
-        self.__request = request
         self.__args = args
         self.__kwargs = kwargs
-        self.__job.request = request
-        super(_CheckAbortThread, self).__init__(name="JobRunner")
+        super(_CheckAbortThread, self).__init__(name="JobExecutor")
 
     def run(self):
         args = self.__args or ()
@@ -183,15 +173,12 @@ class _WorkerThread(InterruptableThread):
         # Run it!
         self.log.info("Starting job %s (%s)", job_id, self.__job.name)
         try:
-            # Make request available to self.request property
-            # (because self.request is thread local)
-            # self.__job.request_stack.push(request)
             try:
-                result = self._run(*args, **kwargs)
+                result = self.__job._run(*args, **kwargs)
                 self.log.info(
                     "Job %s finished with result %s", job_id, result
                 )
-                self._result_queue.put(result)
+                self.__job._result_queue.put(result)
             except JobAborted:
                 self.log.warning("Job %s aborted.", job_id)
                 # re-raise JobAborted to allow celery to perform job
@@ -202,6 +189,3 @@ class _WorkerThread(InterruptableThread):
         except Exception as e:
             e.exc_info = sys.exc_info()
             self._result_queue.put(e)
-        # finally:
-            # Remove the request
-            # self.request_stack.pop()

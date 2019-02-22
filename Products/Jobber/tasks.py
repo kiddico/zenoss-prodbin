@@ -13,6 +13,7 @@ import importlib
 import json
 import logging
 import redis
+import sys
 import time
 
 from Products.ZenUtils.Utils import InterruptableThread
