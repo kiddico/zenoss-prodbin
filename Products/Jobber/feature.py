@@ -11,6 +11,8 @@ from __future__ import absolute_import
 
 import logging
 
+from contextlib import contextmanager
+
 from AccessControl.SecurityManagement import (
     newSecurityManager, noSecurityManager
 )
@@ -21,6 +23,8 @@ from ZPublisher.BaseRequest import RequestContainer
 
 from Products.ZenUtils.Utils import getObjByPath
 
+from . import states
+from .exceptions import JobAborted
 from .logger import FormatStringAdapter
 from .utils import osw
 from .zenjobs import app
@@ -100,3 +104,19 @@ def _login(context, name='admin', userfolder=None):
         user = user.__of__(userfolder)
     newSecurityManager(None, user)
     return user
+
+
+class Abortable(object):
+    """Feature class to support the celery.contrib.AbortableTask class.
+    """
+
+    def on_failure(self, exc, task_id, args, kwargs, einfo):
+        # Because JobAborted is an exception, celery will change the state to
+        # FAILURE once the task completes. Since we want it to remain ABORTED,
+        # we'll set it back here.
+        if isinstance(exc, JobAborted):
+            self.update_state(state=states.ABORTED)
+
+    @contextmanager
+    def abortable(self):
+        """Spins off a thread to monitor """

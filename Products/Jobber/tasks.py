@@ -16,11 +16,12 @@ import redis
 import sys
 import time
 
+from celery.contrib.abortable import AbortableTask
 from Products.ZenUtils.Utils import InterruptableThread
 
 from . import states
 from .exceptions import JobAborted
-from .feature import requires, DMD
+from .feature import requires, DMD, Abortable
 from .zenjobs import app
 
 
@@ -48,7 +49,7 @@ def legacy_job(self, jobclasspath, *args, **kwargs):
     return result
 
 
-@app.task(bind=True)
+@app.task(bind=True, base=requires(DMD, Abortable, AbortableTask))
 def abortable_job(self, jobclasspath, *args, **kwargs):
     """This task executes legacy abortable Job based tasks.
     """
@@ -57,9 +58,10 @@ def abortable_job(self, jobclasspath, *args, **kwargs):
     cls = getattr(module, clsName)
     job = cls(log=self.log, dmd=self.dmd, request=self.request)
 
+    rc = redis.Redis(host="localhost", db=1)
+    rc.ping()
+
     try:
-        rc = redis.Redis(host="localhost", db=1)
-        rc.ping()
         runner = _JobRunner(job, args=args, kwargs=kwargs)
         aborter = _JobAborter(self.request.id, rc, runner)
         aborter.start()
