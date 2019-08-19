@@ -87,23 +87,16 @@ class ServiceManagerTest(TestCase):
         self.getLogger = self.getLogger_patcher.start()
         self.addCleanup(self.getLogger_patcher.stop)
 
-        self.getUtility_patcher = patch(
-            "{src}.getUtility".format(**PATH), autospec=True,
-        )
-        self.getUtility = self.getUtility_patcher.start()
-        self.addCleanup(self.getUtility_patcher.stop)
-
         self.dmd = Mock()
-        self.dmd_factory = self.getUtility.return_value
-        self.dmd_factory.return_value = self.dmd
-
         self.refclass = Mock()
         self.routes = Mock()
         self.executors = Mock()
         self.registry = ServiceRegistry()
         self.loader = MagicMock(ServiceLoader)
         self.factory = MagicMock(ServiceReferenceFactory)
-        self.manager = ServiceManager(self.registry, self.loader, self.factory)
+        self.manager = ServiceManager(
+            self.dmd, self.registry, self.loader, self.factory,
+        )
 
     @patch("{src}.ServiceAddedEvent".format(**PATH), spec=True)
     @patch("{src}.notify".format(**PATH), spec=True)

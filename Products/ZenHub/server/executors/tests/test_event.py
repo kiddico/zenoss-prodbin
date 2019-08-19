@@ -15,7 +15,6 @@ from twisted.internet import defer
 from twisted.python.failure import Failure
 
 from Products.ZenHub.server.service import ServiceCall
-from Products.Zuul.interfaces import IDataRootFactory
 
 from ..event import SendEventExecutor
 
@@ -33,7 +32,6 @@ class SendEventExecutorTest(TestCase):
 
     def setUp(self):
         names_to_patch = [
-            "getUtility",
             "getattr",
         ]
         for name in names_to_patch:
@@ -42,11 +40,11 @@ class SendEventExecutorTest(TestCase):
             self.addCleanup(patcher.stop)
 
         self.zem = MagicMock(spec=["__class__", "sendEvent", "sendEvents"])
-        self.dmd_factory = self.getUtility.return_value
-        self.dmd_factory.return_value.ZenEventManager = self.zem
+        self.dmd = Mock()
+        self.dmd.ZenEventManager = self.zem
 
         self.name = "event"
-        self.executor = SendEventExecutor(self.name)
+        self.executor = SendEventExecutor(self.name, self.dmd)
 
     def test_create(self):
         result = SendEventExecutor.create("test")
@@ -54,7 +52,6 @@ class SendEventExecutorTest(TestCase):
         self.assertEqual(result.name, "test")
 
     def test_initialization(self):
-        self.getUtility.assert_called_once_with(IDataRootFactory)
         self.assertEqual(self.name, self.executor.name)
 
     def test_start(self):

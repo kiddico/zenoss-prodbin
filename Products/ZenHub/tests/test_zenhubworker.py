@@ -124,6 +124,7 @@ class ZenHubWorkerTest(TestCase):
         t.ServiceLoader.assert_called_once_with()
         t.ServiceReferenceFactory.assert_called_once_with(t.zhw)
         t.ServiceManager.assert_called_once_with(
+            t.dmd,
             t.ServiceRegistry.return_value,
             t.ServiceLoader.return_value,
             t.ServiceReferenceFactory.return_value,

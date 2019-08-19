@@ -17,11 +17,9 @@ import uuid
 
 from twisted.internet import defer
 from twisted.spread import pb
-from zope.component import getUtility
 from zope.event import notify
 
 from Products.ZenHub.PBDaemon import RemoteBadMonitor, RemoteException
-from Products.Zuul.interfaces import IDataRootFactory
 
 from .events import ServiceAddedEvent
 from .utils import getLogger, import_service_class
@@ -32,9 +30,10 @@ _PropagatingErrors = (RemoteException, pb.RemoteError, pb.Error)
 class ServiceManager(object):
     """Manages ZenHub service objects."""
 
-    def __init__(self, registry, loader, factory):
+    def __init__(self, dmd, registry, loader, factory):
         """Initialize a ServiceManager instance.
 
+        :param dmd: Reference to ZODB
         :param registry: Stores references to services
         :type registry: Mapping[str, WorkerInterceptor]
         :param loader: Loads and initializes ZenHub services
@@ -45,7 +44,7 @@ class ServiceManager(object):
         self.__services = registry
         self.__load = loader
         self.__build = factory
-        self.__dmd = getUtility(IDataRootFactory)()
+        self.__dmd = dmd
         self.__log = getLogger(self)
 
     @property

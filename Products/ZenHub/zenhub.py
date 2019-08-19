@@ -144,7 +144,7 @@ class ZenHub(ZCmdBase):
         self._monitor = StatsMonitor()
         self._status_reporter = ZenHubStatusReporter(self._monitor)
         self._pools = make_pools()
-        self._service_manager = make_service_manager(self._pools)
+        self._service_manager = make_service_manager(self.dmd, self._pools)
         authenticators = getCredentialCheckers(self.options.passwordfile)
         self._server_factory = make_server_factory(
             self._pools, self._service_manager, authenticators,

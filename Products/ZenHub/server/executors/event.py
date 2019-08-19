@@ -12,10 +12,7 @@ from __future__ import absolute_import
 import time
 
 from twisted.internet import defer
-from zope.component import getUtility
 from zope.event import notify
-
-from Products.Zuul.interfaces import IDataRootFactory
 
 from ..events import (
     ServiceCallReceived, ServiceCallStarted, ServiceCallCompleted,
@@ -31,21 +28,22 @@ class SendEventExecutor(object):
     """
 
     @classmethod
-    def create(cls, name, **ignored):
+    def create(cls, name, dmd, **ignored):
         """Return a new executor instance.
 
         :param str name: The executor's name
+        :param dmd: A reference to the DMD object.
         :return: A new SendEventExecutor instance.
         """
-        return cls(name)
+        return cls(name, dmd)
 
-    def __init__(self, name):
+    def __init__(self, name, dmd):
         """Initialize an SendEventExecutor instance.
 
         :param str name: the name of this executor
         """
         self.__name = name
-        self.__zem = getUtility(IDataRootFactory)().ZenEventManager
+        self.__zem = dmd.ZenEventManager
 
     @property
     def name(self):

@@ -80,12 +80,6 @@ class ModelingPausedTest(TestCase):
     """Test the ModelingPaused class."""
 
     def setUp(self):
-        self.getUtility_patcher = patch(
-            "{src}.getUtility".format(**PATH), autospec=True,
-        )
-        self.getUtility = self.getUtility_patcher.start()
-        self.addCleanup(self.getUtility_patcher.stop)
-
         self.scp = Mock()
         self.ServiceCallPriority_patcher = patch.object(
             priority, "ServiceCallPriority",
@@ -95,12 +89,10 @@ class ModelingPausedTest(TestCase):
         self.MODEL = self.ServiceCallPriority.MODEL
 
         self.dmd = Mock(spec=["getPauseADMLife"])
-        self.dmd_factory = self.getUtility.return_value
-        self.dmd_factory.return_value = self.dmd
         self.timeout = 10.0
         self.config = Mock(priorities={"modeling": "MODEL"})
 
-        self.paused = ModelingPaused("MODEL", self.timeout)
+        self.paused = ModelingPaused(self.dmd, "MODEL", self.timeout)
 
     def test_paused(self):
         self.dmd.getPauseADMLife.return_value = 5.0

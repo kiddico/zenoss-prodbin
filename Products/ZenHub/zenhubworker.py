@@ -81,7 +81,9 @@ class ZenHubWorker(ZCmdBase, pb.Referenceable):
         self.__registry = ServiceRegistry()
         loader = ServiceLoader()
         factory = ServiceReferenceFactory(self)
-        self.__manager = ServiceManager(self.__registry, loader, factory)
+        self.__manager = ServiceManager(
+            self.dmd, self.__registry, loader, factory,
+        )
 
         # Configure/initialize the ZenHub client
         creds = UsernamePassword(

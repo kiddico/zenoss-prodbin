@@ -13,6 +13,7 @@ from mock import call, Mock, NonCallableMock, patch
 from twisted.internet import defer
 from unittest import TestCase
 
+from .. import main
 from ..interface import IHubServerConfig
 from ..main import (
     start_server, stop_server, make_server_factory, make_pools,
@@ -109,34 +110,58 @@ class MakeServerFactoryTest(TestCase):
 class MakeServiceManagerTest(TestCase):
     """Test the make_service_manager function."""
 
+    @patch("{src}._executors".format(**PATH), {})
+    @patch("{src}.ModelingPaused".format(**PATH), autospec=True)
+    @patch("{src}.make_executor".format(**PATH), autospec=True)
+    @patch("{src}.make_workerpool_executor".format(**PATH), autospec=True)
     @patch("{src}.ServiceManager".format(**PATH), autospec=True)
     @patch("{src}.ServiceReferenceFactory".format(**PATH), autospec=True)
     @patch("{src}.ServiceLoader".format(**PATH), autospec=True)
-    @patch("{src}.make_executors".format(**PATH), autospec=True)
     @patch("{src}.ServiceCallRouter".format(**PATH), autospec=True)
     @patch("{src}.ServiceRegistry".format(**PATH), autospec=True)
     @patch("{src}.getUtility".format(**PATH), autospec=True)
     def test_make_service_manager(
         self, _getUtility, _ServiceRegistry, _ServiceCallRouter,
-        _make_executors, _ServiceLoader, _ServiceReferenceFactory,
-        _ServiceManager,
+        _ServiceLoader, _ServiceReferenceFactory, _ServiceManager,
+        _make_workerpool_executor, _make_executor, _ModelingPaused,
     ):
-        pools = NonCallableMock()
+        dmd = Mock("dmd")
+        pools = {
+            "adm": Mock("adm_pool"),
+            "default": Mock("default_pool"),
+        }
         config = _getUtility.return_value
+        config.executors = {
+            "event": Mock("event_exec"),
+            "adm": Mock("adm_exec"),
+            "default": Mock("default_exec"),
+        }
+        priority = Mock()
+        timeout = Mock()
 
-        result = make_service_manager(pools)
+        paused_call = _ModelingPaused(dmd, priority, timeout)
+        admExec = call(
+            "adm", config.executors.get("adm"), pools["adm"], paused_call,
+        )
+        defaultExec = call(
+            "default", config.executors.get("default"),
+            pools["default"], paused_call,
+        )
+
+        result = make_service_manager(dmd, pools)
 
         _getUtility.assert_called_once_with(IHubServerConfig)
         _ServiceRegistry.assert_called_once_with()
         _ServiceCallRouter.from_config.assert_called_once_with(config.routes)
-        _make_executors.assert_called_once_with(config, pools)
+        _make_executors.assert_called_once_with(config, pools, dmd)
         _ServiceLoader.assert_called_once_with()
         _ServiceReferenceFactory.assert_called_once_with(
             WorkerInterceptor,
             _ServiceCallRouter.from_config.return_value,
-            _make_executors.return_value,
+            main._executors,
         )
         _ServiceManager.assert_called_once_with(
+            dmd,
             _ServiceRegistry.return_value,
             _ServiceLoader.return_value,
             _ServiceReferenceFactory.return_value,

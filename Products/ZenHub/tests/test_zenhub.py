@@ -98,7 +98,7 @@ class ZenHubInitTest(TestCase):
         ]
 
         for patcher in t.zenhub_patchers:
-            patcher.start()
+            setattr(t, patcher.attribute, patcher.start())
             t.addCleanup(patcher.stop)
 
         ZenHub._getConf.return_value.id = 'config_id'
@@ -151,7 +151,9 @@ class ZenHubInitTest(TestCase):
             StatsMonitor.return_value,
         )
         make_pools.assert_called_once_with()
-        make_service_manager.assert_called_once_with(make_pools.return_value)
+        make_service_manager.assert_called_once_with(
+            t.dmd, make_pools.return_value,
+        )
         getCredentialCheckers.assert_called_once_with(
             zh.options.passwordfile,
         )

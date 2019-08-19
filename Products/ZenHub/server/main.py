@@ -87,7 +87,7 @@ def make_server_factory(pools, manager, authenticators):
     return ZenPBServerFactory(hubportal)
 
 
-def make_service_manager(pools):
+def make_service_manager(dmd, pools):
     # Retrieve the server config object.
     config = getUtility(IHubServerConfig)
 
@@ -96,12 +96,12 @@ def make_service_manager(pools):
 
     # Build the executors;
     # returns a dict having <executor-name>: <executor-instance>
-    executors = make_executors(config, pools)
+    executors = make_executors(config, pools, dmd)
 
     # Build the ZenHub service manager
     loader = ServiceLoader()
     factory = ServiceReferenceFactory(WorkerInterceptor, routes, executors)
-    return ServiceManager(registry, loader, factory)
+    return ServiceManager(dmd, registry, loader, factory)
 
 
 def make_pools():
@@ -112,11 +112,11 @@ def make_pools():
     return {name: WorkerPool(name) for name in config.pools.keys()}
 
 
-def make_executors(config, pools):
+def make_executors(config, pools, dmd):
     global _executors
     for name, spec in config.executors.items():
         modpath, clsname = spec.split(":")
         cls = import_name(modpath, clsname)
-        executor = cls.create(name, config=config, pool=pools.get(name))
+        executor = cls.create(name, dmd, config=config, pool=pools.get(name))
         _executors[name] = executor
     return _executors

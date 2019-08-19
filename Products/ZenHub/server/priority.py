@@ -13,9 +13,6 @@ import collections
 import enum
 
 from itertools import chain, count, cycle
-from zope.component import getUtility
-
-from Products.Zuul.interfaces import IDataRootFactory
 
 from .config import priorities as _priorities
 from .utils import UNSPECIFIED as _UNSPECIFIED
@@ -105,13 +102,13 @@ class ModelingPaused(object):
     When modeling is paused, applyDataMaps service calls are not run.
     """
 
-    def __init__(self, modeling_priority, modeling_pause_timeout):
+    def __init__(self, dmd, modeling_priority, modeling_pause_timeout):
         """Initialize a ModelingPaused instance.
 
         :param modeling_priority: Priority for modeling calls
         :param float modeling_pause_timeout: Duration of modeling pause
         """
-        self.__dmd = getUtility(IDataRootFactory)()
+        self.__dmd = dmd
         self.__modeling_pause_timeout = modeling_pause_timeout
         self.__priority = getattr(ServiceCallPriority, modeling_priority)
 
