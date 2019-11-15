@@ -353,4 +353,4 @@ def _update_zauth_conf(svc):
     return True
 
 
-EditServicesStartUp()
+instance = EditServicesStartUp()
