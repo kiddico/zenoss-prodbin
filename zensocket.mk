@@ -8,10 +8,10 @@ CFLAGS  := -Wall -pedantic -D__GNU_LIBRARY__ -g
 LDFLAGS :=
 
 ZENSOCKET_BINARY := bin/zensocket
-ZENSOCKET_SRC := legacy/zensocket/zensocket.c
+ZENSOCKET_SRC := zensocket/zensocket.c
 
 clean-zensocket:
-	rm -rf $(ZENSOCKET_BINARY)
+	@rm -vrf $(ZENSOCKET_BINARY)
 
 build-zensocket: $(ZENSOCKET_BINARY)
 

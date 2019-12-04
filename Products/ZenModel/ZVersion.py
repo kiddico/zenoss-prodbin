@@ -7,6 +7,19 @@
 #
 ##############################################################################
 
-# this is now generated during the build step; see make generate-zversion
-VERSION="%VERSION_STRING%"
-BUILD_NUMBER="%BUILD_NUMBER%"
+import sys
+import pkg_resources
+
+
+def _get_zenoss_pkg():
+    pkg = next((
+        dist
+        for path in sys.path
+        for dist in pkg_resources.find_distributions(path)
+        if dist.project_name == "Zenoss"
+    ), None)
+    return pkg.version if pkg else "0.0.0"
+
+
+VERSION = _get_zenoss_pkg()
+BUILD_NUMBER = "DEV"

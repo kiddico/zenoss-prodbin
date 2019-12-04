@@ -11,14 +11,9 @@ SCHEMA_MAJOR ?= $(call subver,$(SCHEMA_VERSION),1)
 SCHEMA_MINOR ?= $(call subver,$(SCHEMA_VERSION),2)
 SCHEMA_REVISION ?= $(call subver,$(SCHEMA_VERSION),3)
 
-VERSION_TARGET = Products/ZenModel/ZVersion.py
 VERSION_SCHEMA_TARGET = Products/ZenModel/ZMigrateVersion.py
 
-.PHONY: clean-zenoss-version generate-zversion generate-zmigrateversion replace-zmigrateversion verify-explicit-zmigrateversion
-
-$(VERSION_TARGET): $(VERSION_TARGET).in VERSION
-	@echo "generating ZVersion.py"
-	sed -e 's/%VERSION_STRING%/$(VERSION)/g; s/%BUILD_NUMBER%/$(BUILD_NUMBER)/g' $< > $@
+.PHONY: clean-zenoss-version generate-zmigrateversion replace-zmigrateversion verify-explicit-zmigrateversion
 
 SED_SCHEMA_REGEX := "\
     s/%SCHEMA_MAJOR%/$(SCHEMA_MAJOR)/g; \
@@ -29,10 +24,9 @@ SED_SCHEMA_REGEX := "\
 # for more information about setting these SCHEMA_* values.
 $(VERSION_SCHEMA_TARGET): $(VERSION_SCHEMA_TARGET).in SCHEMA_VERSION
 	@echo "generating ZMigrateVersion.py"
-	sed -e $(SED_SCHEMA_REGEX) $< > $@
+	@sed -e $(SED_SCHEMA_REGEX) $< > $@
 
 # Build targets for generating the versioned Python modules
-generate-zversion: generate-zmigrateversion $(VERSION_TARGET)
 generate-zmigrateversion: $(VERSION_SCHEMA_TARGET)
 
 # The target replace-zmigrationversion should be used just prior to release to lock
@@ -54,4 +48,4 @@ else
 endif
 
 clean-zenoss-version:
-	rm -f $(VERSION_SCHEMA_TARGET) $(VERSION_TARGET)
+	@rm -vf $(VERSION_SCHEMA_TARGET)

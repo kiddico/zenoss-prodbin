@@ -20,9 +20,9 @@
 
 .PHONY: build-javascript
 
-ZENOSS_JS_BASEDIR   := Products/ZenUI3/browser
-ZENOSS_JSB_FILE     := $(ZENOSS_JS_BASEDIR)/zenoss.jsb2
-ZENOSS_SRC_BASEDIR  := $(ZENOSS_JS_BASEDIR)/resources/js
+ZENOSS_JS_BASEDIR  := Products/ZenUI3/browser
+ZENOSS_JSB_FILE    := $(ZENOSS_JS_BASEDIR)/zenoss.jsb2
+ZENOSS_SRC_BASEDIR := $(ZENOSS_JS_BASEDIR)/resources/js
 
 #
 # JSB_COMPILED_JS_NAME - the output filename from the jsb2 file; e.g. "zenoss-compiled.js"
@@ -49,7 +49,7 @@ JSB_TARGETS = $(JS_OUTPUT_DIR)/zenoss-compiled.js $(JS_OUTPUT_DIR)/zenoss-compil
 .PHONY: clean-javascript build-javascript
 
 clean-javascript:
-	-rm -rf $(JS_OUTPUT_DIR)
+	@rm -vrf $(JS_OUTPUT_DIR)
 
 $(JSB_TARGETS): $(JSB_SOURCES)
 	@echo "Minifying $(ZENOSS_SRC_BASEDIR) -> $(JS_OUTPUT_DIR)/$(JSB_COMPILED_JS_NAME)"
