@@ -39,6 +39,8 @@ class FactKeys(object):
     SYSTEMS_KEY = "systems"
     PROD_STATE_KEY = "prod_state"
     DELETED_KEY = "_zen_deleted_entity"
+    IMPACT_DS_KEY = "dynamic_services"
+    COMP_IMPACT_DS_KEY = "comp_dynamic_services"
 
 
 class Fact(object):
@@ -92,7 +94,7 @@ def device_info_fact(device):
     return f
 
 
-def organizer_fact_from_device(device):
+def organizer_fact_from_device(device, impact_facade):
     """
     Given a device, generates its organizers fact
     """
@@ -105,10 +107,15 @@ def organizer_fact_from_device(device):
     device_fact.data[FactKeys.LOCATION_KEY] = [location] if location else []
     device_fact.data[FactKeys.SYSTEMS_KEY] = device.getSystemNames()
     device_fact.data[FactKeys.GROUPS_KEY] = device.getDeviceGroupNames()
+    dynamic_services = []
+    dynamic_services_infos = impact_facade.getServices(device.getPrimaryUrlPath())
+    for ds in dynamic_services_infos:
+        dynamic_services.append(ds.name)
+    device_fact.data[FactKeys.IMPACT_DS_KEY] = dynamic_services
     return device_fact
 
 
-def organizer_fact_from_device_component(device_fact, comp_uuid, comp_meta_type):
+def organizer_fact_from_device_component(device_fact, comp_uuid, comp_meta_type, dynamic_services):
     """
     Given a device component, generates its organizers fact
     @param device_fact: organizers fact for device
@@ -116,6 +123,7 @@ def organizer_fact_from_device_component(device_fact, comp_uuid, comp_meta_type)
     comp_fact = copy.deepcopy(device_fact)
     comp_fact.metadata[FactKeys.CONTEXT_UUID_KEY] = comp_uuid
     comp_fact.metadata[FactKeys.META_TYPE_KEY] = comp_meta_type
+    comp_fact.data[FactKeys.COMP_IMPACT_DS_KEY] = dynamic_services
     comp_fact.id = shortid()
     return comp_fact
 

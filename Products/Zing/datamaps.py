@@ -30,6 +30,7 @@ from Products.Zing.interfaces import (
 )
 
 from Products.Zing.tx_state import ZingTxStateManager
+from Products import Zuul
 
 
 logging.basicConfig()
@@ -145,7 +146,8 @@ class ZingDatamapHandler(object):
         and impact relationship fact)
         """
         for device, facts in facts_per_device.iteritems():
-            device_organizers_fact = ZFact.organizer_fact_from_device(device)
+            impact_facade = Zuul.getFacade('enterpriseservices', self.context)
+            device_organizers_fact = ZFact.organizer_fact_from_device(device, impact_facade)
             for f in facts:
                 # return datamap fact
                 if f.is_valid():
@@ -156,7 +158,15 @@ class ZingDatamapHandler(object):
                     # organizers fact for the component
                     if comp_uuid not in zing_tx_state.already_generated_organizer_facts:
                         comp_meta = f.metadata.get(ZFact.FactKeys.META_TYPE_KEY, "")
-                        comp_fact = ZFact.organizer_fact_from_device_component(device_organizers_fact, comp_uuid, comp_meta)
+                        dynamic_services = []
+                        dynamic_services_infos = []
+                        for component in device.getDeviceComponents():
+                            if component.getUUID() == comp_uuid:
+                                component_path = component.getPrimaryUrlPath()
+                                dynamic_services_infos = impact_facade.getServices(component_path)
+                        for ds in dynamic_services_infos:
+                            dynamic_services.append(ds.name)
+                        comp_fact = ZFact.organizer_fact_from_device_component(device_organizers_fact, comp_uuid, comp_meta, dynamic_services)
                         if comp_fact.is_valid():
                             zing_tx_state.already_generated_organizer_facts.add(comp_uuid)
                             yield comp_fact
