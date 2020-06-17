@@ -9,6 +9,9 @@ _here = path.abspath(path.dirname(__file__))
 with open(path.join(_here, "VERSION"), "r") as _f:
     _version = ''.join(_f.readlines()).strip()
 
+with open(path.join(_here, "LICENSE"), "r") as _f:
+    _license = ''.join(_f.readlines()).strip()
+
 
 class ZenInstallCommand(install):
     """Used to disable installs."""
@@ -47,7 +50,7 @@ setup(
     author="Zenoss, Inc.",
     author_email="dev@zenoss.com",
     url="https://www.zenoss.com",
-    license="",
+    license=_license,
     package_dir={"": "."},
     packages=find_packages(),
     namespace_packages=["Products"],

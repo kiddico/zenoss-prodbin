@@ -15,6 +15,8 @@ BUILD_IMAGE_TAG = zenoss/$(BUILD_IMAGE):$(BUILD_VERSION)
 UID := $(shell id -u)
 GID := $(shell id -g)
 
+LAST_COMMIT_YEAR = $(shell git log -1 --date=format:"%Y" --format="%ad")
+
 DOCKER = $(shell which docker 2>/dev/null)
 
 DOCKER_RUN := $(DOCKER) run --rm \
@@ -43,12 +45,12 @@ build.dockerfile: build.dockerfile.in
 $(ARTIFACT): $(TDIR)/$(ARCHIVE) $(TDIR)/install.sh
 	makeself.sh $(TDIR) $@ "Installing zenoss-prodbin component" ./install.sh
 
-ARCHIVE_INCLUSIONS = Products bin etc share legacy/sitecustomize.py setup.py VERSION
+ARCHIVE_INCLUSIONS = Products bin etc share legacy/sitecustomize.py setup.py VERSION LICENSE
 ARCHIVE_EXCLUSIONS = --exclude=*.pyc --exclude=*migrate/tests* --exclude=*ZenUITests*
 ARCHIVE_TRANSFORMS = --transform="s/legacy\/sitecustomize.py/lib\/python2.7\/sitecustomize.py/"
 
 $(TDIR)/$(ARCHIVE): | $(TDIR)
-$(TDIR)/$(ARCHIVE): setup.py $(JSB_TARGETS) $(ZENSOCKET_BINARY) $(VERSION_TARGET) $(VERSION_SCHEMA_TARGET)
+$(TDIR)/$(ARCHIVE): setup.py LICENSE $(JSB_TARGETS) $(ZENSOCKET_BINARY) $(VERSION_SCHEMA_TARGET)
 	@tar cvzf $@ $(ARCHIVE_EXCLUSIONS) $(ARCHIVE_INCLUSIONS) $(ARCHIVE_TRANSFORMS)
 
 $(TDIR)/install.sh: install.sh | $(TDIR)
@@ -56,9 +58,12 @@ $(TDIR)/install.sh: install.sh | $(TDIR)
 	@chmod -v +x $@
 
 # equivalent to python setup.py develop
-install: setup.py $(JSB_TARGETS) $(ZENSOCKET_BINARY) $(VERSION_TARGET) $(VERSION_SCHEMA_TARGET)
+install: setup.py LICENSE $(JSB_TARGETS) $(ZENSOCKET_BINARY) $(VERSION_SCHEMA_TARGET)
 	@python setup.py develop
 
 clean: clean-javascript clean-zensocket clean-zenoss-version
 	@rm -vf $(ARTIFACT) build.dockerfile
 	@rm -vrf Zenoss.egg-info dist $(TDIR)
+
+LICENSE: LICENSE.in
+	@sed -e "s/%YEAR%/$(LAST_COMMIT_YEAR)/g" $< > $@
