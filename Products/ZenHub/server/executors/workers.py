@@ -44,10 +44,11 @@ class WorkerPoolExecutor(object):
     """An executor that executes service calls using remote workers."""
 
     @classmethod
-    def create(cls, name, config=None, pool=None):
+    def create(cls, name, dmd, config=None, pool=None):
         """Return a new executor instance.
 
         :param str name: The executor's name
+        :param dmd: Reference to the DMD object.
         :param IHubServerConfig config: Configuration data
         :param WorkerPool pool: Where the zenhubworker references live
         :return: A new WorkerPoolExecutor instance.
