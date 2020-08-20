@@ -33,12 +33,16 @@ class RpnGraphPoint(GraphPoint):
     def getRpn(self, multiid=-1, prefix=''):
         parts = self.rpn.split(',')
         for i, var in enumerate(parts):
+            # WHY DO THIS AT ALL? WE PASS THE EXCEPTION ANYWAYS WTF
             try:
                 _ = float(var)
                 continue
             except ValueError:
                 pass
 
+            # So... do you want to break if it's not? Why are we checking?
+            # if <condition> continue else continue
+            # wat.
             if var in rpnStack.opcodes:
                 continue
                 
