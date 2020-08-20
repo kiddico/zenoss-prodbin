@@ -34,7 +34,7 @@ class RpnGraphPoint(GraphPoint):
         parts = self.rpn.split(',')
         for i, var in enumerate(parts):
             try:
-                unused = float(var)
+                _ = float(var)
                 continue
             except ValueError:
                 pass
